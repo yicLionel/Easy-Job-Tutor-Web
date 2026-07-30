@@ -27,7 +27,9 @@
 ├── vercel.json           # Vercel 项目配置（保持零配置路由）
 └── api/
     ├── __init__.py       # Python 包标记
-    ├── index.py          # Vercel ASGI 入口
+    ├── index.py          # Vercel ASGI 入口（/api）
+    ├── health.py         # Vercel 入口（/api/health）
+    ├── analyze.py        # Vercel 入口（/api/analyze）
     ├── main.py           # FastAPI 应用工厂
     ├── parser.py         # 简历文本抽取（PDF / Word / TXT）
     ├── matcher.py        # 匹配度评分
@@ -66,7 +68,7 @@ vercel --prod          # 推到生产，得到公开 *.vercel.app 域名
 2. 打开 vercel.com → New Project → 导入仓库 → Framework Preset 选 **Other** → Deploy；
 3. 部署完成后默认即为公开访问。
 
-部署时 Vercel 会自动识别 `api/index.py` 导出的 FastAPI 应用，并安装项目根目录 `requirements.txt` 中的依赖。`/api/health`、`/api/analyze` 等路径会由同一个 ASGI 应用处理，不需要额外 rewrite。
+部署时 Vercel 会安装项目根目录 `requirements.txt` 中的依赖。`api/health.py` 与 `api/analyze.py` 分别为对应 URL 提供函数入口，并复用同一个 FastAPI 应用；不需要 rewrite。
 
 ## 说明与后续
 
