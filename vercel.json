@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "functions": {
+    "api/index.py": {
+      "includeFiles": ["backend/**", "api/**"]
+    }
+  },
+  "build": {
+    "env": {
+      "PYTHON_VERSION": "3.12"
+    }
+  }
+}
