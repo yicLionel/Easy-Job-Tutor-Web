@@ -1,18 +1,32 @@
 # -*- coding: utf-8 -*-
-"""Vercel ASGI 函数入口。
+"""Vercel ASGI 函数入口（带错误兜底，便于调试）。
 
-Vercel 的 Python 运行时原生支持 ASGI 应用——只要把 FastAPI 实例��出为 `app`
-变量，Vercel 会自动识别并包装成 Serverless 函数。不需要 Mangum，
-不需要 `vercel` 包，不需要自定义 handler。
+Vercel 的 Python 运行时原生支持 ASGI 应用——只要模块顶层有 `app` 变量指向
+ASGI 实例，Vercel 会自动识别并包装成 Serverless 函数。
 
-注意：Vercel 会把 /api 目录下的文件按文件系统路由映射。
-api/index.py → handled by app, request path 保留完整前缀 /api/*。
+注意：Vercel 只把 api/index.py 映射到 /api（精确路径），不自动路由子路径。
+`vercel.json` 中需配置 rewrites 来映射 /api/* → /api 函数。
 """
 import os
+import traceback
 
-# Vercel 上不通过 FastAPI 托管前端静态文件（由 Vercel 直接托管）
 os.environ["SERVE_STATIC"] = "0"
 
 from main import create_app
 
-app = create_app()
+_fastapi_app = create_app()
+
+
+async def app(scope, receive, send):
+    """在 FastAPI 外层包一个 try/except，让调试信息能暴露出来。"""
+    try:
+        await _fastapi_app(scope, receive, send)
+    except Exception:
+        tb = traceback.format_exc()
+        body = tb.encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": 500,
+            "headers": [[b"content-type", b"text/plain; charset=utf-8"]],
+        })
+        await send({"type": "http.response.body", "body": body})
