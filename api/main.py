@@ -1,26 +1,29 @@
 # -*- coding: utf-8 -*-
 """FastAPI 主程序：简历解析 + 匹配分析 + 学习路线 + 面试辅导。
 
-- 本地：uvicorn api.main:app（同时托管根目录前端静态文件）
-- Vercel：由 api/index.py 导出 ASGI 应用，静态文件由 Vercel 托管
+Gate 系统：根据输入组合自动切换分析模式。
+- complete：完整材料（JD + 简历）→ 全链路分析
+- jd_only：仅 JD → 岗位拆解分析
+- resume_only：仅简历 → 简历基线诊断
+- multi_jd：多 JD + 简历 → 多岗位对比
 """
 import os
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 
 from api.parser import parse_resume
-from api.matcher import analyze
+from api.matcher import analyze, analyze_jd_only, analyze_resume_only, multi_jd_compare
 from api.learning import build_path, build_interview
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 前端静态文件所在目录：默认取项目根目录（api 的上一级）
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="AI 简历优化与面试辅导", version="0.1.0")
+    app = FastAPI(title="AI 简历优化与面试辅导", version="0.2.0")
 
     app.add_middleware(
         CORSMiddleware,
@@ -35,10 +38,75 @@ def create_app() -> FastAPI:
 
     @app.post("/api/analyze")
     async def analyze_endpoint(
-        jd: str = Form(..., description="岗位 JD 文本"),
+        jd: str = Form(..., description="岗位 JD 文本（仅 JD 模式也传到此字段）"),
         role: str = Form("auto", description="目标岗位：auto/ai_product/ai_agent/ai_ops"),
-        resume: UploadFile = File(..., description="简历 PDF / Word / TXT"),
+        resume: Optional[UploadFile] = File(None, description="简历 PDF / Word / TXT"),
+        mode: str = Form("auto", description="分析模式：auto / complete / jd_only / resume_only / multi_jd"),
+        jds: Optional[str] = Form(None, description="多 JD 模式：JSON 数组字符串，传入多个 JD 文本"),
     ):
+        """Gate 系统主入口。根据 mode 参数和输入组合自动路由到不同分析模式。"""
+        # ── Gate: 模式检测 ──────────────────────────────────
+        has_resume_file = resume is not None and resume.filename is not None
+        has_jd_text = bool(jd and jd.strip())
+        has_multi_jd = bool(jds and jds.strip().startswith("["))
+
+        resolved_mode = mode
+        if mode == "auto":
+            if has_resume_file and has_jd_text:
+                resolved_mode = "complete"
+            elif has_multi_jd and has_resume_file:
+                resolved_mode = "multi_jd"
+            elif has_jd_text and not has_resume_file:
+                resolved_mode = "jd_only"
+            elif has_resume_file and not has_jd_text:
+                resolved_mode = "resume_only"
+            else:
+                return {"ok": False, "error": "请至少提供岗位 JD 文本或上传简历文件。"}
+
+        # ── 模式路由 ────────────────────────────────────────
+
+        # 模式 1: JD 拆解分析（仅 JD）
+        if resolved_mode == "jd_only":
+            return {
+                "ok": True,
+                "mode": "jd_only",
+                "jd_analysis": analyze_jd_only(jd),
+            }
+
+        # 模式 2: 简历基线诊断（仅简历）
+        if resolved_mode == "resume_only":
+            raw = await resume.read()
+            resume_text = parse_resume(resume.filename or "", raw)
+            if not resume_text.strip():
+                return {
+                    "ok": False,
+                    "error": "未能从简历中提取到文字内容，请确认文件为可复制文本的 PDF / Word（扫描件图片暂不支持）。",
+                }
+            diag = analyze_resume_only(resume_text)
+            diag["resume_length"] = len(resume_text)
+            return {"ok": True, "mode": "resume_only", "resume_diagnosis": diag}
+
+        # 模式 3: 多 JD 对比
+        if resolved_mode == "multi_jd":
+            raw = await resume.read()
+            resume_text = parse_resume(resume.filename or "", raw)
+            if not resume_text.strip():
+                return {
+                    "ok": False,
+                    "error": "未能从简历中提取到文字内容。",
+                }
+            import json
+            try:
+                jd_list = json.loads(jds)
+            except (json.JSONDecodeError, TypeError):
+                return {"ok": False, "error": "多 JD 参数格式错误，请传入 JSON 数组。"}
+            if not isinstance(jd_list, list) or len(jd_list) < 2:
+                return {"ok": False, "error": "多 JD 模式至少需要传入 2 个 JD 文本。"}
+            comparison = multi_jd_compare(jd_list, resume_text)
+            comparison["resume_length"] = len(resume_text)
+            return {"ok": True, "mode": "multi_jd", "multi_jd_comparison": comparison}
+
+        # ── 模式 4（默认）: 完整材料分析 ────────────────────
         raw = await resume.read()
         resume_text = parse_resume(resume.filename or "", raw)
 
@@ -50,13 +118,14 @@ def create_app() -> FastAPI:
 
         match = analyze(jd_text=jd, resume_text=resume_text, role=role)
         match["ok"] = True
+        match["mode"] = "complete"
         match["resume_length"] = len(resume_text)
 
         match["learning_path"] = build_path(match["role"], match["gaps"])
         match["interview"] = build_interview(match["role"], match["gaps"])
         return match
 
-    # 本地开发时由 FastAPI 托管前端；Vercel 上 SERVE_STATIC=0，由 Vercel 托管静态
+    # 本地开发时由 FastAPI 托管前端
     if os.getenv("SERVE_STATIC", "1") == "1" and os.path.isfile(os.path.join(FRONTEND_DIR, "index.html")):
         app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")
 
