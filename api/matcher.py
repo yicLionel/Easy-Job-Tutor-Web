@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """匹配度分析：基于知识库做关键词命中评分，输出总分、维度分与差距。"""
-from knowledge import ROLES, auto_detect_role, DIMENSIONS
+from api.knowledge import ROLES, auto_detect_role, DIMENSIONS
 
 
 def _hit(skill, text_lower: str) -> bool:

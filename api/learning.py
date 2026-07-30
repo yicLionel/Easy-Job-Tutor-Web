@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """根据差距生成：分阶段学习路线 + 针对性面试问题。"""
-from knowledge import ROLES
+from api.knowledge import ROLES
 
 # 时间估算（按重要性粗略给）
 _EST_DAYS = {1: "3-5 天", 2: "1-2 周", 3: "2-4 周", 4: "1-2 个月", 5: "2-3 个月"}

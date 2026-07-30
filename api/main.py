@@ -1,24 +1,18 @@
 # -*- coding: utf-8 -*-
 """FastAPI 主程序：简历解析 + 匹配分析 + 学习路线 + 面试辅导。
 
-- 本地：uvicorn main:app（同时托管根目录前端静态文件）
-- Vercel：由 api/index.py 用 Mangum 包装为 Serverless 函数，静态文件由 Vercel 托管
+- 本地：uvicorn api.main:app（同时托管根目录前端静态文件）
+- Vercel：由 api/index.py 导出 ASGI 应用，静态文件由 Vercel 托管
 """
 import os
-import sys
-import traceback
-
-# 确保 api/ 在模块搜索路径中，使 `from parser import ...` 无论从哪个目录启动都能解析
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.responses import PlainTextResponse
 
-from parser import parse_resume
-from matcher import analyze
-from learning import build_path, build_interview
+from api.parser import parse_resume
+from api.matcher import analyze
+from api.learning import build_path, build_interview
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # 前端静态文件所在目录：默认取项目根目录（api 的上一级）
@@ -61,16 +55,6 @@ def create_app() -> FastAPI:
         match["learning_path"] = build_path(match["role"], match["gaps"])
         match["interview"] = build_interview(match["role"], match["gaps"])
         return match
-
-    # 全局异常处理器：捕获所有未处理的异常，返回 traceback 到响应体（便于调试）
-    @app.exception_handler(Exception)
-    async def _global_catchall(request, exc):
-        tb = traceback.format_exc()
-        return PlainTextResponse(
-            tb,
-            status_code=500,
-            headers={"Content-Type": "text/plain; charset=utf-8"},
-        )
 
     # 本地开发时由 FastAPI 托管前端；Vercel 上 SERVE_STATIC=0，由 Vercel 托管静态
     if os.getenv("SERVE_STATIC", "1") == "1" and os.path.isfile(os.path.join(FRONTEND_DIR, "index.html")):
