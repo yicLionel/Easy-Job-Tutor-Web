@@ -41,12 +41,17 @@ createApp({
         fd.append("role", form.role);
         fd.append("resume", form.file);
         const resp = await fetch("/api/analyze", { method: "POST", body: fd });
-        const data = await resp.json();
+        const contentType = resp.headers.get("content-type") || "";
+        const data = contentType.includes("application/json") ? await resp.json() : null;
+        if (!resp.ok) {
+          error.value = data?.error || `服务器返回 HTTP ${resp.status}，请稍后重试。`;
+          return;
+        }
         if (!data.ok) { error.value = data.error || "分析失败，请重试。"; return; }
         Object.assign(result, data);
         step.value = 2;
       } catch (e) {
-        error.value = "网络或服务器异常，请确认后端已启动。";
+        error.value = "网络请求失败，请检查网络连接后重试。";
       } finally {
         loading.value = false;
       }

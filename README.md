@@ -24,7 +24,7 @@
 ├── styles.css            # 样式
 ├── requirements.txt      # Python 依赖（Vercel 从项目根目录读取）
 ├── .python-version       # Vercel Python 版本
-├── vercel.json           # Vercel 函数配置
+├── vercel.json           # Vercel 项目配置（保持零配置路由）
 └── api/
     ├── __init__.py       # Python 包标记
     ├── index.py          # Vercel ASGI 入口

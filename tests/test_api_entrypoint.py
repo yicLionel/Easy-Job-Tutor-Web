@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 import unittest
 
 
@@ -14,6 +16,10 @@ class ApiEntrypointTests(unittest.TestCase):
 
         health_route = next(route for route in app.routes if route.path == "/api/health")
         self.assertEqual(health_route.endpoint(), {"status": "ok"})
+
+    def test_vercel_config_does_not_limit_fastapi_to_an_exact_api_file(self):
+        config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
+        self.assertNotIn("functions", config)
 
 
 if __name__ == "__main__":
