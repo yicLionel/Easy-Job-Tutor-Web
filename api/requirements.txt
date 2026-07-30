@@ -1,5 +1,8 @@
+# 生产（Vercel 函数）只需 pdfplumber / python-docx；
+# 本地开发用 uvicorn api.main:app 仍需 fastapi / uvicorn / python-multipart。
+# 注意：Vercel 现在用 uv 严格解析依赖，版本号必须用真实存在的。
 fastapi==0.141.1
-mangum==0.21.0
+uvicorn==0.52.0
 python-multipart==0.0.32
 pdfplumber==0.11.10
 python-docx==1.2.0
