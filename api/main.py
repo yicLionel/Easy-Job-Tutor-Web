@@ -7,7 +7,7 @@
 import os
 import sys
 
-# 确保 backend/ 在模块搜索路径中，使 `from parser import ...` 无论从哪个目录启动都能解析
+# 确保 api/ 在模块搜索路径中，使 `from parser import ...` 无论从哪个目录启动都能解析
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, UploadFile, File, Form
@@ -19,7 +19,7 @@ from matcher import analyze
 from learning import build_path, build_interview
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 前端静态文件所在目录：默认取项目根目录（backend 的上一级）
+# 前端静态文件所在目录：默认取项目根目录（api 的上一级）
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
 

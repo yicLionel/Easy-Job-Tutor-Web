@@ -22,17 +22,15 @@
 ├── index.html            # 前端入口（Vercel 静态托管）
 ├── app.js                # Vue 3 前端逻辑
 ├── styles.css            # 样式
-├── vercel.json           # Vercel 配置
-├── api/
-│   ├── index.py          # Vercel ASGI 入口（Mangum 包装 FastAPI）
-│   └── requirements.txt  # 部署依赖
-└── backend/
+├── vercel.json           # Vercel 配置（仅 build env）
+└── api/
+    ├── index.py          # Vercel ASGI 入口（Mangum 包装 FastAPI）
     ├── main.py           # FastAPI 应用工厂
     ├── parser.py         # 简历文本抽取（PDF / Word / TXT）
     ├── matcher.py        # 匹配度评分
     ├── learning.py       # 学习路线 & 面试辅导生成
     ├── knowledge.py      # 三岗位技能知识库（核心配置）
-    └── requirements.txt  # 本地开发依赖
+    └── requirements.txt  # 部署依赖（含 mangum）
 ```
 
 ## 本地运行
@@ -40,7 +38,7 @@
 依赖安装（使用虚拟环境）：
 
 ```bash
-cd backend
+cd api
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
@@ -48,7 +46,7 @@ uvicorn main:app --reload --port 8000
 
 打开 http://localhost:8000 即可使用。
 
-> 也可以从项目根目录启动：`uvicorn backend.main:app --port 8000`。
+> 也可以从项目根目录启动：`uvicorn api.main:app --port 8000`。
 
 ## 部署到 Vercel（公开）
 
