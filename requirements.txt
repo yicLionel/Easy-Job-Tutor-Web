@@ -1,0 +1,6 @@
+# Vercel 在项目根目录读取 Python 依赖。
+fastapi==0.141.1
+uvicorn==0.52.0
+python-multipart==0.0.32
+pdfplumber==0.11.10
+python-docx==1.2.0

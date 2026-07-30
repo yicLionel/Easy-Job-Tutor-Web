@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 简历优化 · 面试辅导 · 学习路线</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">✦</span>
+        <div>
+          <h1>AI 简历优化助手</h1>
+          <p class="sub">匹配度分析 · 查漏补缺 · 学习路线 · 面试辅导</p>
+        </div>
+      </div>
+      <div class="audience">面向在校大学生 / 应届毕业生 · 首版覆盖 AI 产品 / AI Agent 开发 / AI 运营</div>
+    </header>
+
+    <!-- 步骤条 -->
+    <nav class="stepper">
+      <div v-for="(s, i) in steps" :key="i"
+           :class="['step', { active: step === i + 1, done: step > i + 1 }]">
+        <span class="dot">{{ step > i + 1 ? '✓' : i + 1 }}</span>
+        <span class="stext">{{ s }}</span>
+      </div>
+    </nav>
+
+    <main class="container">
+      <!-- 步骤 1：上传 -->
+      <section v-if="step === 1" class="card">
+        <h2>第一步 · 上传你的简历和岗位 JD</h2>
+        <p class="hint">我们会解析你的简历，并与岗位要求做匹配度分析。</p>
+
+        <label class="field-label">目标岗位</label>
+        <div class="role-pills">
+          <label v-for="r in roleOptions" :key="r.value" :class="['pill', { on: form.role === r.value }]">
+            <input type="radio" name="role" :value="r.value" v-model="form.role" />
+            {{ r.label }}
+          </label>
+        </div>
+
+        <label class="field-label">岗位 JD（粘贴招聘信息全文）</label>
+        <textarea v-model="form.jd" rows="7" placeholder="例如：我们正在招聘 AI 产品实习生，负责 LLM 应用产品的需求分析与 0-1 落地……"></textarea>
+
+        <label class="field-label">上传简历（PDF / Word / TXT）</label>
+        <div class="upload" :class="{ drag: dragging }"
+             @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
+             @drop.prevent="onDrop">
+          <input type="file" ref="fileInput" accept=".pdf,.doc,.docx,.txt" hidden @change="onFile" />
+          <button class="ghost" @click="$refs.fileInput.click()">选择文件</button>
+          <span class="fname">{{ form.fileName || '将文件拖拽到此处，或点击选择' }}</span>
+        </div>
+
+        <div class="actions">
+          <button class="primary" :disabled="loading || !canSubmit" @click="submit">
+            {{ loading ? '分析中…' : '开始分析' }}
+          </button>
+          <span v-if="error" class="err">{{ error }}</span>
+        </div>
+      </section>
+
+      <!-- 步骤 2：匹配度 -->
+      <section v-else-if="step === 2" class="card">
+        <h2>第二步 · 匹配度分析（{{ result.role_label }}）</h2>
+        <div class="match-wrap">
+          <div class="ring-box">
+            <svg viewBox="0 0 200 200" class="ring">
+              <circle cx="100" cy="100" :r="R" class="ring-bg" />
+              <circle cx="100" cy="100" :r="R" class="ring-fg"
+                      :stroke="ringColor"
+                      :stroke-dasharray="circ"
+                      :stroke-dashoffset="circ * (1 - result.overall_score / 100)"
+                      transform="rotate(-90 100 100)" />
+              <text x="100" y="92" class="ring-score">{{ result.overall_score }}</text>
+              <text x="100" y="120" class="ring-unit">匹配度</text>
+            </svg>
+            <p class="ring-note" :style="{ color: ringColor }">{{ scoreWord }}</p>
+          </div>
+
+          <div class="dims">
+            <div v-for="d in result.dimensions" :key="d.name" class="dim">
+              <div class="dim-head"><span>{{ d.name }}</span><span>{{ d.score }}</span></div>
+              <div class="bar"><i :style="{ width: d.score + '%', background: ringColor }"></i></div>
+            </div>
+            <p class="matched">已匹配能力：{{ result.matched_skills.join('、') || '暂无明显命中' }}</p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="ghost" @click="reset">重新上传</button>
+          <button class="primary" @click="step = 3">查看差距（{{ result.gap_count }} 项）</button>
+        </div>
+      </section>
+
+      <!-- 步骤 3：查漏补缺 -->
+      <section v-else-if="step === 3" class="card">
+        <h2>第三步 · 查漏补缺</h2>
+        <p class="hint">以下能力在岗位 JD 中重要，但你的简历暂未体现，建议优先补齐：</p>
+        <div class="gaps">
+          <div v-for="g in result.gaps" :key="g.label" class="gap">
+            <span :class="['imp', 'i' + g.importance]">P{{ g.importance }}</span>
+            <div class="gap-body">
+              <div class="gap-top"><b>{{ g.label }}</b><span class="dim-tag">{{ g.dim }}</span></div>
+              <p>{{ g.learn }}</p>
+              <a v-if="g.resource && g.resource.url" :href="g.resource.url" target="_blank" rel="noopener">
+                学习资源：{{ g.resource.name }} ↗
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="ghost" @click="step = 2">返回</button>
+          <button class="primary" @click="step = 4">生成学习路线 & 面试辅导</button>
+        </div>
+      </section>
+
+      <!-- 步骤 4：学习路线 + 面试 -->
+      <section v-else-if="step === 4" class="card">
+        <h2>第四步 · 学习路线 & 面试辅导</h2>
+        <p class="hint">{{ result.learning_path.summary }}</p>
+
+        <h3 class="block-title">📚 分阶段学习路线</h3>
+        <div v-for="ph in result.learning_path.phases" :key="ph.name" class="phase">
+          <div class="phase-name">{{ ph.name }}</div>
+          <div class="phase-steps">
+            <div v-for="st in ph.steps" :key="st.skill" class="pstep">
+              <div class="pstep-top"><b>{{ st.skill }}</b><span class="est">{{ st.estimate }}</span></div>
+              <p>{{ st.action }}</p>
+              <a v-if="st.resource && st.resource.url" :href="st.resource.url" target="_blank" rel="noopener">
+                {{ st.resource.name }} ↗
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="block-title">🎤 面试辅导</h3>
+        <div class="interview">
+          <p class="iv-sub">通用问题（{{ result.interview.role_label }}）</p>
+          <ul><li v-for="q in result.interview.base_questions" :key="q">{{ q }}</li></ul>
+          <p class="iv-sub" v-if="result.interview.targeted_questions.length">针对性追问（基于你的差距）</p>
+          <ul v-if="result.interview.targeted_questions.length">
+            <li v-for="q in result.interview.targeted_questions" :key="q.question">{{ q.question }}</li>
+          </ul>
+        </div>
+
+        <div class="actions">
+          <button class="ghost" @click="step = 3">返回</button>
+          <button class="primary" @click="downloadPlan">下载优化方案（Markdown）</button>
+          <button class="ghost" @click="reset">重新开始</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">首版 MVP · 匹配度为基于关键词的规则分析，接入大模型后可升级为语义级评估。</footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
