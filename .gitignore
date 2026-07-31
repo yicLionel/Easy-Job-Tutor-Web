@@ -11,5 +11,8 @@ __pycache__/
 # 项目记忆（本地数据，非应用代码）
 .workbuddy/
 
+# 内部开发记录（不对外公开）
+PROJECT_RECORD.md
+
 # 系统文件
 .DS_Store

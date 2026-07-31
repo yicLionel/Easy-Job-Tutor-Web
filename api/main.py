@@ -6,8 +6,11 @@ Gate 系统：根据输入组合自动切换分析模式。
 - jd_only：仅 JD → 岗位拆解分析
 - resume_only：仅简历 → 简历基线诊断
 - multi_jd：多 JD + 简历 → 多岗位对比
+
+locale 参数支持 zh / en，切换分析结果语言。
 """
 import os
+import json
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
@@ -15,11 +18,31 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
 from api.parser import parse_resume
-from api.matcher import analyze, analyze_jd_only, analyze_resume_only, multi_jd_compare
+from api.matcher import (
+    analyze, analyze_jd_only, analyze_resume_only, multi_jd_compare,
+    localize_analysis, localize_interview,
+)
+from api.knowledge import LABEL_EN
 from api.learning import build_path, build_interview
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+
+def _localize_label(text: str) -> str:
+    """简单本地化：用翻译表替换中文→英文。"""
+    return LABEL_EN.get(text, text)
+
+
+def _localize_jd_analysis(jda: dict, locale: str) -> dict:
+    """本地化 JD 分析结果中的标签。"""
+    if locale != "en":
+        return jda
+    for key in ("required_skills", "preferred_skills", "tools_technologies",
+                 "domain_knowledge", "soft_skills", "core_responsibilities"):
+        if key in jda:
+            jda[key] = [_localize_label(s) for s in jda[key]]
+    return jda
 
 
 def create_app() -> FastAPI:
@@ -43,6 +66,7 @@ def create_app() -> FastAPI:
         resume: Optional[UploadFile] = File(None, description="简历 PDF / Word / TXT"),
         mode: str = Form("auto", description="分析模式：auto / complete / jd_only / resume_only / multi_jd"),
         jds: Optional[str] = Form(None, description="多 JD 模式：JSON 数组字符串，传入多个 JD 文本"),
+        locale: str = Form("zh", description="语言：zh / en"),
     ):
         """Gate 系统主入口。根据 mode 参数和输入组合自动路由到不同分析模式。"""
         # ── Gate: 模式检测 ──────────────────────────────────
@@ -67,10 +91,12 @@ def create_app() -> FastAPI:
 
         # 模式 1: JD 拆解分析（仅 JD）
         if resolved_mode == "jd_only":
+            jda = analyze_jd_only(jd)
+            jda = _localize_jd_analysis(jda, locale)
             return {
                 "ok": True,
                 "mode": "jd_only",
-                "jd_analysis": analyze_jd_only(jd),
+                "jd_analysis": jda,
             }
 
         # 模式 2: 简历基线诊断（仅简历）
@@ -95,7 +121,6 @@ def create_app() -> FastAPI:
                     "ok": False,
                     "error": "未能从简历中提取到文字内容。",
                 }
-            import json
             try:
                 jd_list = json.loads(jds)
             except (json.JSONDecodeError, TypeError):
@@ -104,6 +129,14 @@ def create_app() -> FastAPI:
                 return {"ok": False, "error": "多 JD 模式至少需要传入 2 个 JD 文本。"}
             comparison = multi_jd_compare(jd_list, resume_text)
             comparison["resume_length"] = len(resume_text)
+            # 多 JD 对比结果本地化
+            if locale == "en":
+                for jd_item in comparison.get("per_jd", []):
+                    jd_item["gaps"] = [
+                        {**g, "label": _localize_label(g.get("label", "")),
+                         "learn": "", "dim": ""}
+                        for g in jd_item.get("gaps", [])
+                    ]
             return {"ok": True, "mode": "multi_jd", "multi_jd_comparison": comparison}
 
         # ── 模式 4（默认）: 完整材料分析 ────────────────────
@@ -123,6 +156,12 @@ def create_app() -> FastAPI:
 
         match["learning_path"] = build_path(match["role"], match["gaps"])
         match["interview"] = build_interview(match["role"], match["gaps"])
+
+        # 本地化
+        if locale == "en":
+            match = localize_analysis(match, locale)
+            match["interview"] = localize_interview(match.get("interview"), match["role"], locale)
+
         return match
 
     # 本地开发时由 FastAPI 托管前端

@@ -9,6 +9,7 @@ Skill 版本功能集成：
 """
 import re
 from api.knowledge import ROLES, auto_detect_role, DIMENSIONS, GENERIC_RESOURCE
+from api.knowledge import DIMENSIONS_EN, LABEL_EN, LEARN_EN, ROLE_LABEL_EN, ROLE_DESC_EN, INTERVIEW_BASE_EN
 
 # ── 工具函数 ──────────────────────────────────────────────
 
@@ -477,3 +478,83 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
         "five_dim_review": five_dim,
         "fact_ledger": ledger,
     }
+
+
+def localize_analysis(result: dict, locale: str = "zh") -> dict:
+    """后处理分析结果，将中文标签翻译为英文（locale="en" 时生效）。
+
+    作用于：role_label / role_desc / dimensions / matched_skills / gaps /
+    fact_ledger / five_dim_review 中的标签与描述。
+    """
+    if locale != "en":
+        return result
+
+    r = dict(result)  # 浅拷贝，避免修改原数据
+
+    # 角色
+    if "role_label" in r:
+        r["role_label"] = ROLE_LABEL_EN.get(r["role_label"], r["role_label"])
+    if "role_desc" in r:
+        r["role_desc"] = ROLE_DESC_EN.get(r["role_desc"], r["role_desc"])
+
+    # 维度
+    if "dimensions" in r:
+        r["dimensions"] = [
+            {**d, "name": DIMENSIONS_EN.get(d["name"], d["name"])}
+            for d in r["dimensions"]
+        ]
+
+    # 已匹配技能
+    if "matched_skills" in r:
+        r["matched_skills"] = [LABEL_EN.get(s, s) for s in r["matched_skills"]]
+
+    # 差距
+    if "gaps" in r:
+        r["gaps"] = [
+            {
+                **g,
+                "label": LABEL_EN.get(g["label"], g["label"]),
+                "learn": LEARN_EN.get(g.get("learn", ""), g.get("learn", "")),
+                "dim": DIMENSIONS_EN.get(g.get("dim", ""), g.get("dim", "")),
+            }
+            for g in r["gaps"]
+        ]
+
+    # 五维评审
+    if "five_dim_review" in r:
+        new_fd = {}
+        for key, dim in r["five_dim_review"].items():
+            new_fd[key] = {**dim}
+            # label 本身就是中文的，直接整体替换
+        r["five_dim_review"] = new_fd
+
+    # 事实台账
+    if "fact_ledger" in r:
+        r["fact_ledger"] = [
+            {
+                **f,
+                "skill": LABEL_EN.get(f["skill"], f["skill"]),
+                "dim": DIMENSIONS_EN.get(f.get("dim", ""), f.get("dim", "")),
+            }
+            for f in r["fact_ledger"]
+        ]
+
+    return r
+
+
+def localize_interview(interview: dict, role_key: str, locale: str = "zh") -> dict:
+    """本地化面试问题。"""
+    if locale != "en" or not interview:
+        return interview
+    eng = INTERVIEW_BASE_EN.get(role_key)
+    if eng:
+        interview["base_questions"] = eng.copy()
+    return interview
+
+
+def localize_learning_path(lp: dict, locale: str = "zh") -> dict:
+    """本地化学习路线（目前 learning.py 的 summary 为中文，暂保持原样）。"""
+    if locale != "en" or not lp:
+        return lp
+    # phases 内的 skill 和 action 通过 gap 本地化已处理
+    return lp
