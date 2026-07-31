@@ -78,48 +78,6 @@
 
 ---
 
-## 🚀 本地运行
-
-```bash
-# 1. 创建并激活虚拟环境
-python -m venv .venv && source .venv/bin/activate
-
-# 2. 安装依赖
-pip install -r requirements.txt
-
-# 3. 启动服务
-uvicorn api.main:app --reload --port 8000
-```
-
-打开 http://localhost:8000 即可使用（本地由 FastAPI 直接托管前端）。
-
----
-
-## ☁️ 部署到 Vercel
-
-本项目为 Vercel 友好结构，两种方式任选：
-
-**已上线地址**：https://easy-job-tutor-web.vercel.app/
-
-**方式 A：Vercel CLI**
-
-```bash
-npm i -g vercel        # 或 npx vercel
-vercel login
-vercel                 # 首次部署（Framework 选 Other）
-vercel --prod          # 推送到生产，得到公开 *.vercel.app 域名
-```
-
-**方式 B：连接 Git 仓库**
-
-1. 将本仓库推送到 GitHub / GitLab；
-2. 打开 vercel.com → New Project → 导入仓库 → Framework Preset 选 **Other** → Deploy；
-3. 部署完成后默认公开访问。
-
-部署时 Vercel 会安装根目录 `requirements.txt` 的依赖；`api/health.py`、`api/analyze.py`、`api/index.py` 为对应 URL 提供函数入口，复用同一个 FastAPI 应用，无需 rewrite。
-
----
-
 ## ✅ 测试
 
 ```bash
