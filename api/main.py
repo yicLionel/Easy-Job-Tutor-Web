@@ -61,7 +61,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/analyze")
     async def analyze_endpoint(
-        jd: str = Form(..., description="岗位 JD 文本（仅 JD 模式也传到此字段）"),
+        jd: Optional[str] = Form(None, description="岗位 JD 文本（仅 JD 模式也传到此字段）"),
         role: str = Form("auto", description="目标岗位：auto/ai_product/ai_agent/ai_ops"),
         resume: Optional[UploadFile] = File(None, description="简历 PDF / Word / TXT"),
         mode: str = Form("auto", description="分析模式：auto / complete / jd_only / resume_only / multi_jd"),
@@ -91,6 +91,8 @@ def create_app() -> FastAPI:
 
         # 模式 1: JD 拆解分析（仅 JD）
         if resolved_mode == "jd_only":
+            if not has_jd_text:
+                return {"ok": False, "error": "JD 拆解模式需要提供岗位 JD 文本。"}
             jda = analyze_jd_only(jd)
             jda = _localize_jd_analysis(jda, locale)
             return {
