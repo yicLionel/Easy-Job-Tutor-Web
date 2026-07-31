@@ -1,5 +1,7 @@
 # AI 简历优化助手 · 面试辅导 · 学习路线
 
+> **🌐 在线体验：https://easy-job-tutor-web.vercel.app/**
+
 > An AI-powered resume analyzer built for students and fresh graduates targeting AI-related roles.
 > Paste a job description, upload your resume, and get an explainable match analysis, gap list, learning path, and interview prep — for free, with zero API cost.
 
@@ -96,6 +98,8 @@ uvicorn api.main:app --reload --port 8000
 ## ☁️ 部署到 Vercel
 
 本项目为 Vercel 友好结构，两种方式任选：
+
+**已上线地址**：https://easy-job-tutor-web.vercel.app/
 
 **方式 A：Vercel CLI**
 
