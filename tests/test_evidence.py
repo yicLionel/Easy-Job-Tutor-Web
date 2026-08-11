@@ -67,6 +67,24 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(java_match.status, "not_found")
         self.assertEqual(java_match.reason, "explicit_negation")
 
+    def test_tool_use_transition_does_not_depend_on_capitalization(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "Never used java and developed Python services.",
+        )
+
+        self.assertEqual(match.status, "evidenced")
+        self.assertEqual(match.reason, "action_context")
+
+    def test_same_skill_tool_use_chain_stays_negated(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "Never used Python and developed Python services.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
     def test_shared_negated_predicate_chain_stays_negated(self):
         match = classify_skill_evidence(
             PYTHON,
@@ -80,6 +98,15 @@ class EvidenceTests(unittest.TestCase):
         match = classify_skill_evidence(
             PYTHON,
             "I never designed web apps and developed Python applications.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
+    def test_capitalized_generic_object_stays_negated(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "I never designed APIs and developed Python applications.",
         )
 
         self.assertEqual(match.status, "not_found")

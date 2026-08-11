@@ -98,17 +98,33 @@ def _context_for_span(text: str, start: int, end: int) -> tuple[str, int, int]:
     )
 
 
-def _has_distinct_entity_coordination_reset(
+def _has_tool_use_coordination_reset(
     text: str,
-    current_keyword: str,
+    current_skill_keywords: list[str],
 ) -> bool:
-    """Reset negation only between a distinct named entity and a new action."""
+    """Reset after a completed ``used <tool>`` denial and before a new action.
+
+    The classifier has no entity catalogue, so token capitalization cannot prove
+    that the first conjunct names a different skill.  A single-object tool-use
+    predicate is the narrow syntactic transition supported by this interface;
+    coordinated resume actions such as ``designed ... and developed ...`` keep
+    sharing the preceding negation.
+    """
     for coordinator in re.finditer(r"\band\b", text, re.IGNORECASE):
-        entity = re.search(
-            r"(?<![A-Za-z0-9])([A-Z][A-Za-z0-9]*(?:[.+#-][A-Za-z0-9]+)*)\s*$",
-            text[:coordinator.start()],
+        preceding = text[:coordinator.start()].strip()
+        tool_use = re.fullmatch(
+            r"used\s+(?P<object>[^\s,，;；]+)",
+            preceding,
+            re.IGNORECASE,
         )
-        if not entity or entity.group(1).casefold() == current_keyword.casefold():
+        if not tool_use:
+            continue
+        denied_object = tool_use.group("object")
+        if any(
+            _keyword_pattern(keyword).fullmatch(denied_object)
+            for keyword in current_skill_keywords
+            if keyword
+        ):
             continue
         following = text[coordinator.end():]
         if any(
@@ -119,7 +135,11 @@ def _has_distinct_entity_coordination_reset(
     return False
 
 
-def _is_negated(text: str, span: tuple[int, int, str]) -> bool:
+def _is_negated(
+    text: str,
+    span: tuple[int, int, str],
+    current_skill_keywords: list[str],
+) -> bool:
     context, keyword_start, keyword_end = _context_for_span(
         text,
         span[0],
@@ -131,9 +151,9 @@ def _is_negated(text: str, span: tuple[int, int, str]) -> bool:
                 between = context[negation.end():keyword_start]
                 if (
                     not re.search(r"[,，;；]", between)
-                    and not _has_distinct_entity_coordination_reset(
+                    and not _has_tool_use_coordination_reset(
                         between,
-                        span[2],
+                        current_skill_keywords,
                     )
                 ):
                     return True
@@ -172,7 +192,12 @@ def classify_skill_evidence(skill: dict, resume_text: str) -> EvidenceMatch:
             reason="no_keyword",
         )
 
-    non_negated = [span for span in spans if not _is_negated(text, span)]
+    skill_keywords = skill.get("keywords", [])
+    non_negated = [
+        span
+        for span in spans
+        if not _is_negated(text, span, skill_keywords)
+    ]
     if not non_negated:
         return EvidenceMatch(
             status="not_found",

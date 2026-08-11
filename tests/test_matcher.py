@@ -71,6 +71,21 @@ class MatcherTests(unittest.TestCase):
             "explicit_negation",
         )
 
+    def test_capitalized_generic_object_cannot_create_coverage_or_rewrite(self):
+        result = analyze(
+            "We need Python experience.",
+            "I never designed APIs and developed Python applications.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 0)
+        self.assertNotIn("Python", result["matched_skills"])
+        self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "explicit_negation",
+        )
+
     def test_negated_requirement_cannot_have_complete_keyword_coverage(self):
         result = analyze(
             "We need Python experience.",
