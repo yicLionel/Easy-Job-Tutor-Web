@@ -67,6 +67,32 @@ const deterministicAnalysis = {
   warnings: [],
 };
 
+const LONG_REQUIREMENT_LABEL = "L".repeat(500);
+const LONG_JD_EVIDENCE = "J".repeat(500);
+const LONG_RESUME_EVIDENCE = "R".repeat(500);
+const LONG_SUGGESTION_SOURCE = "S".repeat(500);
+const LONG_SUGGESTION_DRAFT = "D".repeat(500);
+
+function longTextAnalysis() {
+  const response = JSON.parse(JSON.stringify(deterministicAnalysis));
+  response.coverage_summary.keyword_coverage = 50;
+  response.coverage_summary.evidenced_count = 1;
+  response.coverage_summary.uncertain_count = 1;
+  response.requirements[0] = {
+    ...response.requirements[0],
+    label: LONG_REQUIREMENT_LABEL,
+    jd_evidence: LONG_JD_EVIDENCE,
+    resume_status: "uncertain",
+    resume_evidence: [LONG_RESUME_EVIDENCE],
+  };
+  response.rewrite_suggestions[0] = {
+    ...response.rewrite_suggestions[0],
+    source: LONG_SUGGESTION_SOURCE,
+    suggested: LONG_SUGGESTION_DRAFT,
+  };
+  return response;
+}
+
 async function fillAnalysisForm(page) {
   await page.getByLabel("岗位 JD").fill(fs.readFileSync(JD_FIXTURE, "utf8"));
   await page.getByLabel("上传简历").setInputFiles(RESUME_FIXTURE);
@@ -266,6 +292,150 @@ test("structured analysis errors show mapped guidance and request ID without leg
   await expect(errorAlert).toContainText("岗位 JD 至少需要 50 个字符，请补充完整岗位描述后重试。");
   await expect(errorAlert).toContainText("请求编号：req-e2e-jd-short");
   expect(requestedPaths).toEqual(["/api/v1/analyses"]);
+});
+
+test("populated mobile results wrap long API evidence and suggestions without losing content", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/v1/analyses", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(longTextAnalysis()),
+    });
+  });
+
+  await page.goto("/");
+  await submitAnalysis(page);
+  await expect(page.getByTestId("analysis-result")).toBeVisible();
+
+  const requirementCard = page.getByTestId("requirement-card").first();
+  const suggestionCard = page.getByTestId("suggestion-card").first();
+  const jdEvidence = requirementCard.locator(".evidence-block blockquote");
+  const resumeEvidence = requirementCard.locator(".evidence-list li");
+  const source = suggestionCard.locator(".suggestion-block").first().locator("p");
+  const draft = suggestionCard.locator(".suggested-block p");
+
+  await expect(requirementCard.locator(".requirement-head > strong")).toHaveText(LONG_REQUIREMENT_LABEL);
+  await expect(jdEvidence).toHaveText(LONG_JD_EVIDENCE);
+  await expect(resumeEvidence).toHaveText(LONG_RESUME_EVIDENCE);
+  await expect(source).toHaveText(LONG_SUGGESTION_SOURCE);
+  await expect(draft).toHaveText(LONG_SUGGESTION_DRAFT);
+
+  const resultMetrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    richText: Array.from(document.querySelectorAll(
+      ".requirement-head > strong, .evidence-block blockquote, .evidence-list li, " +
+      ".suggestion-block p, .suggestion-context dd"
+    )).map((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      overflowX: getComputedStyle(element).overflowX,
+    })),
+  }));
+  expect(resultMetrics.scrollWidth).toBeLessThanOrEqual(resultMetrics.clientWidth);
+  expect(resultMetrics.richText.length).toBeGreaterThan(0);
+  for (const metric of resultMetrics.richText) {
+    expect(metric.scrollWidth).toBeLessThanOrEqual(metric.clientWidth);
+    expect(metric.overflowX).not.toBe("hidden");
+  }
+  expect(await source.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return element.getBoundingClientRect().height > Number.parseFloat(style.lineHeight) * 2;
+  })).toBe(true);
+
+  await page.getByRole("button", { name: /^查看差距/ }).click();
+  const gapBody = page.locator(".gap-body");
+  await expect(gapBody).toContainText(LONG_REQUIREMENT_LABEL);
+  await expect(gapBody).toContainText(LONG_JD_EVIDENCE);
+  await expect(gapBody).toContainText(LONG_RESUME_EVIDENCE);
+  const gapMetrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    richText: Array.from(document.querySelectorAll(".gap-body, .gap-body p, .gap-body li"))
+      .map((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        overflowX: getComputedStyle(element).overflowX,
+      })),
+  }));
+  expect(gapMetrics.scrollWidth).toBeLessThanOrEqual(gapMetrics.clientWidth);
+  for (const metric of gapMetrics.richText) {
+    expect(metric.scrollWidth).toBeLessThanOrEqual(metric.clientWidth);
+    expect(metric.overflowX).not.toBe("hidden");
+  }
+});
+
+test("clearing an in-flight analysis aborts and invalidates its delayed response", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() => {
+    const realFetch = window.fetch.bind(window);
+    window.__clearRequestLifecycle = { hasSignal: false, signalAborted: false };
+    window.fetch = (input, init = {}) => {
+      if (String(input) === "/api/v1/analyses") {
+        window.__clearRequestLifecycle.hasSignal = init.signal instanceof AbortSignal;
+        init.signal?.addEventListener("abort", () => {
+          window.__clearRequestLifecycle.signalAborted = true;
+        });
+      }
+      return realFetch(input, init);
+    };
+  });
+
+  let markDelayedResponseAttempted;
+  const delayedResponseAttempted = new Promise((resolve) => {
+    markDelayedResponseAttempted = resolve;
+  });
+  await page.route("**/api/v1/analyses", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    markDelayedResponseAttempted();
+    void route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(deterministicAnalysis),
+    }).catch(() => {});
+  });
+
+  await page.goto("/");
+  await page.evaluate(() => {
+    window.__analysisResultEverVisible = false;
+    const recordVisibility = () => {
+      const result = document.querySelector('[data-testid="analysis-result"]');
+      if (result && result.getClientRects().length > 0) {
+        window.__analysisResultEverVisible = true;
+      }
+    };
+    new MutationObserver(recordVisibility).observe(document.body, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+  });
+
+  await fillAnalysisForm(page);
+  const requestStarted = page.waitForRequest("**/api/v1/analyses");
+  await page.getByRole("button", { name: "分析这份简历" }).click();
+  await requestStarted;
+  await expect(page.getByTestId("loading-status")).toHaveText("分析中…");
+  await page.getByRole("button", { name: "清空结果" }).click();
+
+  await delayedResponseAttempted;
+  await page.waitForTimeout(100);
+  const lifecycle = await page.evaluate(() => ({
+    hasSignal: window.__clearRequestLifecycle.hasSignal,
+    signalAborted: window.__clearRequestLifecycle.signalAborted,
+    resultCount: document.querySelectorAll('[data-testid="analysis-result"]').length,
+    resultEverVisible: window.__analysisResultEverVisible,
+  }));
+  expect(lifecycle).toEqual({
+    hasSignal: true,
+    signalAborted: true,
+    resultCount: 0,
+    resultEverVisible: false,
+  });
+  await expect(page.getByTestId("analysis-result")).toHaveCount(0);
+  await expect(page.getByTestId("error-alert")).toHaveCount(0);
+  await expect(page.getByTestId("loading-status")).toHaveText("分析这份简历");
 });
 
 test("390px shell has no page overflow and sidebar starts closed", async ({ page }) => {

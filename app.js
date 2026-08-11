@@ -160,6 +160,8 @@ createApp({
     const isMobile = ref(typeof window !== "undefined" ? window.innerWidth <= 960 : false);
     const sidebarOpen = ref(!isMobile.value);
     const sidebarCollapsed = ref(false);
+    let activeAnalysisController = null;
+    let analysisRequestGeneration = 0;
 
     const syncViewport = () => {
       if (typeof window === "undefined") return;
@@ -391,11 +393,16 @@ createApp({
 
     // ── 提交 ──────────────────────────────────────────────────
     const submit = async () => {
-      if (!canSubmit.value) return;
+      if (loading.value || !canSubmit.value) return;
+      const requestGeneration = ++analysisRequestGeneration;
+      const controller = new AbortController();
+      activeAnalysisController = controller;
+      const isActiveRequest = () =>
+        analysisRequestGeneration === requestGeneration &&
+        activeAnalysisController === controller;
       loading.value = true;
       error.value = "";
       requestId.value = "";
-      const controller = new AbortController();
       const timeoutId = window.setTimeout(
         () => controller.abort(),
         ANALYSIS_TIMEOUT_MS
@@ -414,6 +421,7 @@ createApp({
         });
         const contentType = resp.headers.get("content-type") || "";
         const data = contentType.includes("application/json") ? await resp.json() : null;
+        if (!isActiveRequest()) return;
         if (!resp.ok || !data?.ok) {
           showApiError(data, resp.status);
           return;
@@ -424,10 +432,14 @@ createApp({
         feedbackRating.value = "";
         step.value = 2;
       } catch (e) {
+        if (!isActiveRequest()) return;
         error.value = e?.name === "AbortError" ? t("error_timeout") : t("error_network");
       } finally {
         window.clearTimeout(timeoutId);
-        loading.value = false;
+        if (isActiveRequest()) {
+          activeAnalysisController = null;
+          loading.value = false;
+        }
       }
     };
 
@@ -466,6 +478,10 @@ createApp({
 
     // ── 重置 ──────────────────────────────────────────────────
     const reset = () => {
+      analysisRequestGeneration += 1;
+      activeAnalysisController?.abort();
+      activeAnalysisController = null;
+      loading.value = false;
       step.value = 1;
       form.jd = ""; form.file = null; form.fileName = ""; form.role = "auto";
       error.value = "";
