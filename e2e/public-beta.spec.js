@@ -24,3 +24,43 @@ test("public navigation hides deferred features", async ({ page }) => {
   await expect(page.getByText("模拟面试")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "EN" })).toHaveCount(0);
 });
+
+test("public scope exposes only one JD plus one supported resume", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("仅分析 JD")).toHaveCount(0);
+  await expect(page.getByText("仅诊断简历")).toHaveCount(0);
+  await expect(page.getByText("多 JD 对比")).toHaveCount(0);
+  await expect(page.locator('input[type="file"]')).toHaveAttribute("accept", ".pdf,.docx,.txt");
+});
+
+test("public complete analysis shows evidence without scores or deferred features", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("textarea").fill(
+    "招聘 AI 产品经理，要求具备 Python、SQL、用户研究、数据分析和产品规划能力。"
+  );
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "resume.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      "教育经历\n项目经历\n使用 Python 和 SQL 完成用户研究与数据分析，负责产品规划。",
+      "utf8"
+    ),
+  });
+  await page.locator("#privacy-consent").check();
+  await page.getByRole("button", { name: "分析这份简历" }).click();
+
+  await expect(page.getByText("事实台账")).toBeVisible();
+  await expect(page.getByText("匹配度")).toHaveCount(0);
+  await expect(page.getByText("竞争力强")).toHaveCount(0);
+  await expect(page.getByText("ATS")).toHaveCount(0);
+  await expect(page.getByText("面试准备度")).toHaveCount(0);
+  await expect(page.getByText("简历可信度")).toHaveCount(0);
+  await expect(page.getByText("学习路线")).toHaveCount(0);
+  await expect(page.getByText("面试辅导")).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^查看差距/ }).click();
+  await expect(page.getByRole("heading", { name: "查漏补缺", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "生成学习路线 & 面试辅导" })).toHaveCount(0);
+  await expect(page.getByText("学习路线")).toHaveCount(0);
+  await expect(page.getByText("面试辅导")).toHaveCount(0);
+});
