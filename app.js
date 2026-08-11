@@ -1,5 +1,5 @@
 /* Easy Job Tutor 公开 Beta — 同源 vendored Vue 3 全局运行时，无构建步骤。 */
-const { createApp, reactive, ref, computed, onMounted, onUnmounted } = Vue;
+const { createApp, reactive, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
 
 // ── i18n 字典 ──────────────────────────────────────────
 const PRIVACY_CONSENT_VERSION = "2026-08-11";
@@ -113,6 +113,7 @@ createApp({
     const dragging = ref(false);
     const result = reactive({});
     const fileInput = ref(null);
+    const menuTrigger = ref(null);
     const privacyConsent = ref(false);
     const isMobile = ref(typeof window !== "undefined" ? window.innerWidth <= 960 : false);
     const sidebarOpen = ref(!isMobile.value);
@@ -151,6 +152,10 @@ createApp({
 
     const sidebarExpanded = computed(() =>
       isMobile.value ? sidebarOpen.value : !sidebarCollapsed.value
+    );
+
+    const mobileSidebarHidden = computed(() =>
+      isMobile.value && !sidebarOpen.value
     );
 
     const sidebarToggleLabel = computed(() => {
@@ -220,8 +225,15 @@ createApp({
     });
 
     const closeSidebar = () => { if (isMobile.value) sidebarOpen.value = false; };
-    const toggleSidebar = () => {
-      if (isMobile.value) { sidebarOpen.value = !sidebarOpen.value; return; }
+    const toggleSidebar = async () => {
+      if (isMobile.value) {
+        sidebarOpen.value = !sidebarOpen.value;
+        if (!sidebarOpen.value) {
+          await nextTick();
+          menuTrigger.value?.focus();
+        }
+        return;
+      }
       sidebarCollapsed.value = !sidebarCollapsed.value;
     };
 
@@ -313,9 +325,9 @@ createApp({
       // i18n
       t,
       // 状态
-      step, loading, error, dragging, result, fileInput,
+      step, loading, error, dragging, result, fileInput, menuTrigger,
       isMobile, sidebarOpen, sidebarCollapsed, appShellClass,
-      sidebarExpanded, sidebarToggleLabel,
+      sidebarExpanded, sidebarToggleLabel, mobileSidebarHidden,
       currentSteps, availableSteps, currentModeLabel, resultSummary,
       // 表单
       roleOptions, form, privacyConsent, canSubmit,

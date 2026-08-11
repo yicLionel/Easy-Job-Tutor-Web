@@ -12,7 +12,8 @@
     <div :class="['app-shell', appShellClass]" data-testid="app-shell">
     <div v-if="isMobile && sidebarOpen" class="sidebar-mask" @click="closeSidebar"></div>
 
-    <aside id="app-sidebar" class="sidebar" data-testid="sidebar">
+    <aside id="app-sidebar" class="sidebar" data-testid="sidebar"
+           :inert="mobileSidebarHidden" :aria-hidden="mobileSidebarHidden ? 'true' : 'false'">
       <div class="sidebar-top">
         <div class="sidebar-brand">
           <span class="logo">✦</span>
@@ -44,6 +45,7 @@
             :key="item.id"
             class="sidebar-nav-item"
             :class="{ active: currentPage === item.id, disabled: !isNavEnabled(item.id) }"
+            :aria-label="item.label"
             :disabled="!isNavEnabled(item.id)"
             @click="navigateTo(item.id)"
           >
@@ -73,7 +75,7 @@
     <div class="main-shell">
       <header class="topbar">
         <div class="topbar-left">
-          <button type="button" class="menu-trigger" @click="toggleSidebar"
+          <button type="button" ref="menuTrigger" class="menu-trigger" @click="toggleSidebar"
                   aria-controls="app-sidebar" :aria-expanded="sidebarExpanded"
                   :aria-label="sidebarToggleLabel">☰</button>
           <div class="brand">

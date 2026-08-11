@@ -83,3 +83,42 @@ test("core form is keyboard-addressable", async ({ page }) => {
   await expect(page.getByLabel("上传简历")).toBeAttached();
   await expect(page.getByLabel(/我已阅读并同意/)).toBeAttached();
 });
+
+test("sidebar focus follows mobile drawer visibility and desktop collapse", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const sidebar = page.getByTestId("sidebar");
+  const sidebarToggle = page.locator(".sidebar-toggle");
+  const menu = page.locator(".menu-trigger");
+  const homeNavigation = page.getByRole("button", { name: /首页/ });
+  const clearResults = page.getByRole("button", { name: "清空结果" });
+
+  await page.keyboard.press("Tab");
+  await expect(menu).toBeFocused();
+  expect(await menu.evaluate((element) => element.getBoundingClientRect().left)).toBeGreaterThanOrEqual(0);
+  expect(await sidebar.evaluate((element) => element.inert)).toBe(true);
+  await expect(sidebar).toHaveAttribute("aria-hidden", "true");
+
+  await menu.click();
+  expect(await sidebar.evaluate((element) => element.inert)).toBe(false);
+  await expect(sidebar).toHaveAttribute("aria-hidden", "false");
+  await expect(sidebar).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await page.keyboard.press("Shift+Tab");
+  await expect(clearResults).toBeFocused();
+  expect(await clearResults.evaluate((element) => element.getBoundingClientRect().left)).toBeGreaterThanOrEqual(0);
+
+  await sidebarToggle.click();
+  expect(await sidebar.evaluate((element) => element.inert)).toBe(true);
+  await expect(sidebar).toHaveAttribute("aria-hidden", "true");
+  await expect(menu).toBeFocused();
+  expect(await menu.evaluate((element) => element.getBoundingClientRect().left)).toBeGreaterThanOrEqual(0);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(sidebar).toHaveAttribute("aria-hidden", "false");
+  expect(await sidebar.evaluate((element) => element.inert)).toBe(false);
+  await menu.click();
+  await page.keyboard.press("Shift+Tab");
+  await expect(homeNavigation).toBeFocused();
+  expect(await homeNavigation.evaluate((element) => element.getBoundingClientRect().left)).toBeGreaterThanOrEqual(0);
+});
