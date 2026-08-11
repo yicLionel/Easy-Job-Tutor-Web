@@ -1,11 +1,10 @@
+import importlib
 import io
 import sys
 import types
 import unittest
 import zipfile
 from unittest.mock import patch
-
-import pdfplumber
 
 from api import parser
 from api.errors import ApiError
@@ -69,6 +68,27 @@ class ParserTests(unittest.TestCase):
         self.assertIn("教育背景", text)
         self.assertIn("Python 项目经验", text)
 
+    def test_pdf_falls_back_to_pypdf_when_pdfplumber_is_unavailable(self):
+        fake_pypdf = types.SimpleNamespace(PdfReader=_FakePdfReader)
+        try:
+            with patch.dict(
+                sys.modules,
+                {
+                    "pdfplumber": None,
+                    "pypdf": fake_pypdf,
+                },
+            ):
+                try:
+                    reloaded_parser = importlib.reload(parser)
+                except ImportError as exc:
+                    self.fail(f"api.parser requires pdfplumber at import time: {exc}")
+                text = reloaded_parser.extract_text_from_pdf(b"%PDF-fake")
+        finally:
+            importlib.reload(parser)
+
+        self.assertIn("教育背景", text)
+        self.assertIn("Python 项目经验", text)
+
     def test_pdf_over_ten_pages_is_rejected_before_extraction(self):
         class _FakePdf:
             pages = [_PageThatMustNotBeExtracted()] * 11
@@ -79,7 +99,8 @@ class ParserTests(unittest.TestCase):
             def __exit__(self, exc_type, exc_value, traceback):
                 return False
 
-        with patch.object(pdfplumber, "open", return_value=_FakePdf()):
+        fake_pdfplumber = types.SimpleNamespace(open=lambda _stream: _FakePdf())
+        with patch.dict(sys.modules, {"pdfplumber": fake_pdfplumber}):
             with self.assertRaisesRegex(ApiError, "10 页") as caught:
                 parser.parse_validated_resume(
                     ValidatedUpload("r.pdf", "pdf", b"%PDF-1.7")

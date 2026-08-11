@@ -5,8 +5,6 @@ import io
 import re
 import zipfile
 
-import pdfplumber
-
 from api.config import (
     MAX_DOCX_COMPRESSION_RATIO,
     MAX_DOCX_UNCOMPRESSED_BYTES,
