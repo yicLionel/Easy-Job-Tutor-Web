@@ -85,6 +85,30 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(match.status, "not_found")
         self.assertEqual(match.reason, "explicit_negation")
 
+    def test_decorated_current_skill_tool_use_stays_negated(self):
+        texts = (
+            "Never used 'Python' and developed Python services.",
+            'Never used "Python" and developed Python services.',
+            "Never used (Python) and developed Python services.",
+            "Never used Python® and developed Python services.",
+        )
+
+        for text in texts:
+            with self.subTest(text=text):
+                match = classify_skill_evidence(PYTHON, text)
+
+                self.assertEqual(match.status, "not_found")
+                self.assertEqual(match.reason, "explicit_negation")
+
+    def test_generic_tool_use_object_stays_negated(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "Never used tutorials and developed Python applications.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
     def test_shared_negated_predicate_chain_stays_negated(self):
         match = classify_skill_evidence(
             PYTHON,

@@ -23,6 +23,22 @@ DIMENSIONS = ["核心技能", "项目经验", "教育背景", "综合素养"]
 GENERIC_RESOURCE = {"name": "在 B 站 / 掘金搜索对应关键词", "url": "https://search.bilibili.com/all?keyword="}
 EN_RESOURCE = {"name": "Search Google / YouTube for keywords", "url": "https://www.google.com/search?q="}
 
+# Named, single-token technologies that can safely identify a distinct tool in
+# short coordinated evidence such as "never used Java and developed Python".
+# Generic resume nouns are deliberately absent so ambiguous text stays negated.
+TECHNOLOGY_ENTITY_ALIASES = frozenset({
+    # Programming languages and runtimes
+    "python", "java", "javascript", "typescript", "golang", "rust", "ruby",
+    "kotlin", "swift", "scala", "node", "node.js",
+    # Named frameworks and libraries
+    "react", "vue", "fastapi", "flask", "django", "langchain", "langgraph",
+    "llamaindex", "haystack", "crewai", "dify", "pandas", "numpy", "pytest",
+    # Named infrastructure and data tools
+    "docker", "kubernetes", "k8s", "redis", "faiss", "milvus", "chroma",
+    "pgvector", "qdrant", "weaviate", "elasticsearch", "airflow", "spark",
+    "poetry", "git", "vllm", "triton", "onnx", "tensorrt",
+})
+
 ROLES = {
     "ai_product": {
         "label": "AI 产品",

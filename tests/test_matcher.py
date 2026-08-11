@@ -56,6 +56,48 @@ class MatcherTests(unittest.TestCase):
         self.assertIn("Python", result["matched_skills"])
         self.assertEqual(len(result["resume_optimization"]["bullet_rewrites"]), 1)
 
+    def test_decorated_current_skill_cannot_create_coverage_or_rewrite(self):
+        resumes = (
+            "Never used 'Python' and developed Python services.",
+            'Never used "Python" and developed Python services.',
+            "Never used (Python) and developed Python services.",
+            "Never used Python® and developed Python services.",
+        )
+
+        for resume in resumes:
+            with self.subTest(resume=resume):
+                result = analyze(
+                    "We need Python experience.",
+                    resume,
+                    role="ai_agent",
+                )
+
+                self.assertEqual(result["keyword_coverage"], 0)
+                self.assertNotIn("Python", result["matched_skills"])
+                self.assertEqual(
+                    result["resume_optimization"]["bullet_rewrites"],
+                    [],
+                )
+                self.assertEqual(
+                    result["fact_ledger"][0]["evidence_reason"],
+                    "explicit_negation",
+                )
+
+    def test_generic_tool_use_object_cannot_create_coverage_or_rewrite(self):
+        result = analyze(
+            "We need Python experience.",
+            "Never used tutorials and developed Python applications.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 0)
+        self.assertNotIn("Python", result["matched_skills"])
+        self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "explicit_negation",
+        )
+
     def test_shared_negation_cannot_create_python_coverage_or_rewrite(self):
         result = analyze(
             "We need Python experience.",
