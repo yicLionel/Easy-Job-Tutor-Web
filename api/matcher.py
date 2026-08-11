@@ -9,6 +9,8 @@ Skill 版本功能集成：
 """
 import re
 from typing import Any
+
+from api.evidence import EvidenceMatch, classify_skill_evidence
 from api.knowledge import ROLES, auto_detect_role, DIMENSIONS, GENERIC_RESOURCE
 from api.knowledge import DIMENSIONS_EN, LABEL_EN, LEARN_EN, ROLE_LABEL_EN, ROLE_DESC_EN, INTERVIEW_BASE_EN
 
@@ -17,15 +19,6 @@ from api.knowledge import DIMENSIONS_EN, LABEL_EN, LEARN_EN, ROLE_LABEL_EN, ROLE
 def _hit(skill, text_lower: str) -> bool:
     """检查技能关键词是否在文本中命中。"""
     return any(k.lower() in text_lower for k in skill["keywords"])
-
-
-def _hit_score(skill, text_lower: str) -> float:
-    """返回 0~1 的命中强度：全部关键词匹配数 / 总关键词数。"""
-    kws = [k.lower() for k in skill["keywords"]]
-    if not kws:
-        return 0.0
-    hits = sum(1 for k in kws if k in text_lower)
-    return round(hits / len(kws), 2)
 
 
 def _detect_sections(text: str) -> list:
@@ -54,35 +47,23 @@ def build_fact_ledger(
     resume_text: str,
     matched_labels: set,
     skills: list[dict[str, Any]] | None = None,
+    evidence_matches: dict[str, EvidenceMatch] | None = None,
 ) -> list[dict[str, Any]]:
     """为每个技能生成事实台账条目。
 
-    状态规则：
-    - confirmed:   简历原文明确命中关键词
-    - pending_confirmation: 有部分命中但强度不足
-    - model_inference: 未命中但重要性高（在规则系统中作为默认状态）
+    Legacy display statuses are derived only from contextual evidence matches.
     """
-    rl = (resume_text or "").lower()
     ledger = []
     for sk in skills if skills is not None else spec["skills"]:
-        hit_strength = _hit_score(sk, rl)
-        is_hit = sk["label"] in matched_labels
-
-        if is_hit:
-            # 找到命中的关键词作为证据
-            evidence_kws = [k for k in sk["keywords"] if k.lower() in rl]
-            status = "confirmed"
-            source = f"简历原文命中关键词: {', '.join(evidence_kws[:5])}"
-            evidence = f"命中 {len(evidence_kws)}/{len(sk['keywords'])} 个关键词"
-        elif hit_strength > 0.2:
-            status = "pending_confirmation"
-            partial_kws = [k for k in sk["keywords"] if k.lower() in rl]
-            source = "部分关键词命中"
-            evidence = f"部分匹配 {len(partial_kws)}/{len(sk['keywords'])} 个关键词"
-        else:
-            status = "model_inference"
-            source = "未在简历中找到相关关键词"
-            evidence = ""
+        match = (evidence_matches or {}).get(sk["label"])
+        if match is None:
+            match = classify_skill_evidence(sk, resume_text)
+        status = {
+            "evidenced": "confirmed",
+            "uncertain": "pending_confirmation",
+            "not_found": "model_inference",
+        }[match.status]
+        source = match.evidence[0] if match.evidence else ""
 
         ledger.append({
             "skill": sk["label"],
@@ -90,8 +71,12 @@ def build_fact_ledger(
             "importance": sk["importance"],
             "status": status,
             "source": source,
-            "evidence": evidence,
-            "can_enter_final": status == "confirmed",
+            "evidence": source,
+            "can_enter_final": match.status == "evidenced",
+            "evidence_status": match.status,
+            "evidence_reason": match.reason,
+            "evidence_source": list(match.evidence),
+            "matched_keywords": list(match.matched_keywords),
         })
     return ledger
 
@@ -146,14 +131,20 @@ def _quantification_prompt(line: str) -> str:
 def _build_bullet_rewrite(
     line: str,
     jd_keywords: list[str],
-    related_skills: list[dict[str, Any]],
+    related_matches: list[tuple[dict[str, Any], EvidenceMatch]],
 ) -> dict[str, Any]:
     """Create one draft while preserving the source bullet as evidence."""
-    line_lower = line.lower()
-    related_labels = [skill["label"] for skill in related_skills]
+    related_labels = [skill["label"] for skill, _ in related_matches]
+    matched_keyword_forms = {
+        keyword.lower()
+        for _, match in related_matches
+        for keyword in match.matched_keywords
+    }
     related_keywords = [
-        keyword for keyword in jd_keywords if keyword.lower() in line_lower
+        keyword for keyword in jd_keywords
+        if keyword.lower() in matched_keyword_forms
     ]
+    primary_match = related_matches[0][1]
     metric_prompt = _quantification_prompt(line)
     suggested = (
         f"{line.rstrip('。')}；"
@@ -168,6 +159,9 @@ def _build_bullet_rewrite(
         "quantification_prompt": metric_prompt,
         "fact_status": "pending_confirmation",
         "evidence": line,
+        "evidence_status": primary_match.status,
+        "evidence_reason": primary_match.reason,
+        "evidence_source": line,
     }
 
 
@@ -180,10 +174,14 @@ def _build_bullet_rewrites(
     rewrites: list[dict[str, Any]] = []
     prompts: list[dict[str, str]] = []
     for line in _resume_bullet_candidates(resume_text):
-        related_skills = [skill for skill in target_skills if _hit(skill, line.lower())]
-        if not related_skills:
+        related_matches = []
+        for skill in target_skills:
+            match = classify_skill_evidence(skill, line)
+            if match.status == "evidenced":
+                related_matches.append((skill, match))
+        if not related_matches:
             continue
-        rewrite = _build_bullet_rewrite(line, jd_keywords, related_skills)
+        rewrite = _build_bullet_rewrite(line, jd_keywords, related_matches)
         rewrites.append(rewrite)
         if not re.search(r"\d+\s*(?:%|人|万|次|篇|个|天|月|年)|\b\d+(?:\.\d+)?\b", line):
             prompts.append({"source": line, "question": rewrite["quantification_prompt"]})
@@ -197,13 +195,23 @@ def build_resume_optimization(
     resume_text: str,
     target_skills: list[dict[str, Any]],
     matched_labels: set[str],
+    evidence_matches: dict[str, EvidenceMatch] | None = None,
 ) -> dict[str, Any]:
     """Build fact-preserving resume optimization drafts for complete analysis."""
     jd_keywords = _jd_keywords(target_skills, jd_text)
-    resume_lower = (resume_text or "").lower()
+    matches = evidence_matches or {
+        skill["label"]: classify_skill_evidence(skill, resume_text)
+        for skill in target_skills
+    }
+    evidenced_keywords = {
+        keyword.lower()
+        for match in matches.values()
+        if match.status == "evidenced"
+        for keyword in match.matched_keywords
+    }
     missing_keywords = [
         keyword for keyword in jd_keywords
-        if keyword.lower() not in resume_lower
+        if keyword.lower() not in evidenced_keywords
     ]
     missing_skills = [
         skill["label"]
@@ -543,7 +551,6 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
     target_skills = _skills_for_jd(spec, jd_text)
 
     # 2) 命中统计（按维度加权）
-    rl = (resume_text or "").lower()
     dim_stat = {d: {"matched": 0, "total": 0} for d in DIMENSIONS}
     matched_skills = []
     gaps = []
@@ -551,13 +558,17 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
 
     total_w = 0
     matched_w = 0
+    evidence_matches = {
+        sk["label"]: classify_skill_evidence(sk, resume_text)
+        for sk in target_skills
+    }
 
     for sk in target_skills:
         d = sk["dim"]
         w = sk["importance"]
         dim_stat[d]["total"] += w
         total_w += w
-        if _hit(sk, rl):
+        if evidence_matches[sk["label"]].status == "evidenced":
             dim_stat[d]["matched"] += w
             matched_w += w
             matched_skills.append(sk["label"])
@@ -567,6 +578,14 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
                 gaps.append(sk)
 
     overall = round(matched_w / total_w * 100) if total_w else 0
+    evidenced_count = sum(
+        match.status == "evidenced" for match in evidence_matches.values()
+    )
+    keyword_coverage = (
+        round(evidenced_count / len(target_skills) * 100)
+        if target_skills
+        else None
+    )
 
     dimensions = []
     for d in DIMENSIONS:
@@ -605,12 +624,14 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
         resume_text,
         all_matched_labels,
         skills=target_skills,
+        evidence_matches=evidence_matches,
     )
     resume_optimization = build_resume_optimization(
         jd_text,
         resume_text,
         target_skills,
         all_matched_labels,
+        evidence_matches=evidence_matches,
     )
 
     return {
@@ -619,6 +640,7 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
         "role_desc": spec.get("desc", ""),
         "target_skill_count": len(target_skills),
         "overall_score": overall,
+        "keyword_coverage": keyword_coverage,
         "dimensions": dimensions,
         "matched_skills": matched_skills,
         "gaps": gap_list,
