@@ -88,6 +88,28 @@
 
 ## ✅ 测试
 
+使用 Python 3.12 创建虚拟环境并安装开发依赖：
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -r dev-requirements.txt
+```
+
+运行 Python 单元测试和浏览器端到端测试：
+
+```bash
+python -m unittest discover -s tests -v
+npm ci
+npm run check
+npx playwright install chromium
+npm run test:e2e
+```
+
+本地端到端测试会自动启动 FastAPI 服务，并覆盖桌面 Chromium 与 390px 宽移动视口。
+
+旧的 pytest 命令仍可用于本地快速检查：
+
 ```bash
 pytest tests/
 ```

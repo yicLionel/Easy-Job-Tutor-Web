@@ -1,0 +1,11 @@
+{
+  "name": "easy-job-tutor-web",
+  "private": true,
+  "scripts": {
+    "check": "node --check app.js && node --check playwright.config.js",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0"
+  }
+}

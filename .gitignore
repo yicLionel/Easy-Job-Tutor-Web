@@ -7,6 +7,7 @@ __pycache__/
 *.pyc
 .env
 *.log
+.venv/
 
 # 项目记忆（本地数据，非应用代码）
 .workbuddy/
