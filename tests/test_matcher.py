@@ -4,6 +4,47 @@ from api.matcher import analyze
 
 
 class MatcherTests(unittest.TestCase):
+    def test_not_developed_cannot_create_coverage_or_rewrite(self):
+        result = analyze(
+            "We need Python experience.",
+            "I have not developed Python applications.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 0)
+        self.assertNotIn("Python", result["matched_skills"])
+        self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "explicit_negation",
+        )
+
+    def test_chinese_did_not_use_cannot_create_coverage_or_rewrite(self):
+        result = analyze(
+            "We need Python experience.",
+            "我没有使用 Python 开发服务。",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 0)
+        self.assertNotIn("Python", result["matched_skills"])
+        self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "explicit_negation",
+        )
+
+    def test_later_java_negation_keeps_python_coverage_and_rewrite(self):
+        result = analyze(
+            "We need Python experience.",
+            "Developed Python services, never used Java.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 100)
+        self.assertIn("Python", result["matched_skills"])
+        self.assertEqual(len(result["resume_optimization"]["bullet_rewrites"]), 1)
+
     def test_negated_requirement_cannot_have_complete_keyword_coverage(self):
         result = analyze(
             "We need Python experience.",

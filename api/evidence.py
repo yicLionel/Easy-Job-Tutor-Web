@@ -14,11 +14,13 @@ NEGATION_PATTERNS = (
     r"不熟悉",
     r"不了解",
     r"不会",
+    r"没有使用",
     r"没有.{0,8}经验",
     r"未使用",
     r"从未",
     r"\bno\b.{0,16}\bexperience\b",
     r"\bnever\b",
+    r"\bnot\b(?!\s+only\b)",
     r"\bnot familiar\b",
 )
 ACTION_PATTERNS = (
@@ -97,11 +99,30 @@ def _context_for_span(text: str, start: int, end: int) -> tuple[str, int, int]:
 
 
 def _is_negated(text: str, span: tuple[int, int, str]) -> bool:
-    context, _, _ = _context_for_span(text, span[0], span[1])
-    return any(
-        re.search(pattern, context, re.IGNORECASE)
-        for pattern in NEGATION_PATTERNS
+    context, keyword_start, keyword_end = _context_for_span(
+        text,
+        span[0],
+        span[1],
     )
+    for pattern in NEGATION_PATTERNS:
+        for negation in re.finditer(pattern, context, re.IGNORECASE):
+            if negation.start() <= keyword_start:
+                between = context[negation.end():keyword_start]
+                if not re.search(r"[,，;；]", between):
+                    return True
+                continue
+
+            between = context[keyword_end:negation.start()]
+            if re.search(r"[,，;；]|\b(?:and|but)\b|以及|并且|但是", between, re.I):
+                continue
+            stripped = between.strip(" \t:：—-")
+            if not stripped or re.fullmatch(
+                r"(?:[A-Za-z0-9_-]+\s+){0,4}(?:is|was|were|has|have|had|do|does|did)",
+                stripped,
+                re.IGNORECASE,
+            ):
+                return True
+    return False
 
 
 def _has_action_context(text: str, span: tuple[int, int, str]) -> bool:

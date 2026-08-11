@@ -9,9 +9,62 @@ PYTHON = {
     "importance": 5,
     "dim": "核心技能",
 }
+JAVA = {
+    "label": "Java",
+    "keywords": ["java"],
+    "importance": 5,
+    "dim": "核心技能",
+}
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_not_developed_is_explicit_negation(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "I have not developed Python applications.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
+    def test_post_keyword_not_construction_is_explicit_negation(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "Python applications were not developed.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
+    def test_chinese_did_not_use_is_explicit_negation(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "我没有使用 Python 开发服务。",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
+    def test_later_java_negation_does_not_suppress_python_evidence(self):
+        text = "Developed Python services, never used Java."
+
+        python_match = classify_skill_evidence(PYTHON, text)
+        java_match = classify_skill_evidence(JAVA, text)
+
+        self.assertEqual(python_match.status, "evidenced")
+        self.assertEqual(python_match.reason, "action_context")
+        self.assertEqual(java_match.status, "not_found")
+        self.assertEqual(java_match.reason, "explicit_negation")
+
+    def test_positive_span_after_negated_contrast_is_evidenced(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "I have no Python experience, but developed a Python service.",
+        )
+
+        self.assertEqual(match.status, "evidenced")
+        self.assertEqual(match.reason, "action_context")
+
     def test_explicit_negation_is_not_positive_evidence(self):
         match = classify_skill_evidence(
             PYTHON,
