@@ -3,6 +3,21 @@ const { createApp, reactive, ref, computed, onMounted, onUnmounted, nextTick } =
 
 // ── i18n 字典 ──────────────────────────────────────────
 const PRIVACY_CONSENT_VERSION = "2026-08-11";
+const ANALYSIS_TIMEOUT_MS = 22_000;
+const API_ERROR_MESSAGES = Object.freeze({
+  PRIVACY_CONSENT_REQUIRED: "请重新确认隐私说明与使用条款后再试。",
+  JD_TOO_SHORT: "岗位 JD 至少需要 50 个字符，请补充完整岗位描述后重试。",
+  JD_TOO_LONG: "岗位 JD 不能超过 20000 个字符，请删除无关内容后重试。",
+  RESUME_REQUIRED: "请上传 PDF、DOCX 或 TXT 简历后再试。",
+  FILE_TOO_LARGE: "简历文件不能超过 5 MB。",
+  UNSUPPORTED_FILE_TYPE: "请上传 PDF、DOCX 或 TXT 文件。",
+  FILE_MIME_MISMATCH: "文件扩展名与 MIME 类型不一致，请重新导出文件后再试。",
+  FILE_SIGNATURE_MISMATCH: "文件扩展名与真实类型不一致，请重新选择文件。",
+  PDF_TOO_MANY_PAGES: "PDF 简历不能超过 10 页。",
+  DOCX_UNCOMPRESSED_TOO_LARGE: "DOCX 解压后内容超过安全限制，请精简文件后再试。",
+  DOCX_COMPRESSION_RATIO_TOO_HIGH: "DOCX 文件未通过安全检查，请重新导出后再试。",
+  RESUME_TEXT_EMPTY: "没有提取到可用文字，请上传可复制文字的 PDF、DOCX 或 TXT。",
+});
 const LOCALES = {
   zh: {
     /* 品牌 / 通用 */
@@ -28,7 +43,7 @@ const LOCALES = {
     sidebar_new: "新建分析",
     sidebar_clear: "清空结果",
     sidebar_no_result: "请上传一份 JD 与一份简历",
-    sidebar_result_complete: (r) => `${r.role_label || "目标岗位"} · 分析完成`,
+    sidebar_result_complete: (r) => `${r.role?.label || "目标岗位"} · 分析完成`,
     sidebar_result_done: "分析完成",
     /* 分析模式 */
     mode_complete: "完整分析",
@@ -52,42 +67,65 @@ const LOCALES = {
     error_server: (s) => `服务器返回 HTTP ${s}，请稍后重试。`,
     error_fail: "分析失败，请重试。",
     error_network: "网络请求失败，请检查网络连接后重试。",
+    error_timeout: "分析请求超时，请稍后重试。",
+    request_id: (id) => `请求编号：${id}`,
     /* 岗位选择 */
     role_auto: "自动识别",
     role_product: "AI 产品",
     role_agent: "AI Agent 开发",
     role_ops: "AI 运营",
-    /* 完整分析 */
-    match_title: (l) => `关键词与简历原文证据（${l}）`,
-    matched_skills: (s) => `已匹配能力：${(s || []).join("、") || "暂无明显命中"}`,
-    ledger_title: (n) => `📋 事实台账（${n} 项技能）`,
-    ledger_hint: "每个技能的状态追踪：已确认 = 简历原文命中，待确认 = 部分匹配，推断 = 未找到关键词。",
-    ledger_skill: "技能",
-    ledger_dim: "维度",
-    ledger_imp: "重要度",
-    ledger_status: "状态",
-    ledger_evidence: "证据",
-    status_confirmed: "已确认",
-    status_pending: "待确认",
-    status_infer: "推断",
-    resume_opt_title: "针对 JD 优化简历",
-    resume_opt_hint: "以下内容只基于简历原文。建议版本中的【待确认】内容需要你补充真实事实后再用于正式简历。",
-    resume_opt_target: "JD 关键词",
-    resume_opt_missing: "待补充关键词",
-    resume_opt_bullets: "Bullet 改写草稿",
-    resume_opt_source: "简历原文",
-    resume_opt_suggested: "建议版本（待确认）",
-    resume_opt_keywords: "关联关键词",
-    resume_opt_metric: "量化补充",
-    resume_opt_empty: "暂未识别到可直接改写的简历 bullet，请补充项目或经历描述。",
-    resume_opt_export: "导出优化简历草稿",
-    resume_opt_policy: "事实状态：草稿仅重排已有内容，不会自动补充数字、职责或成果。",
+    /* 证据分析 */
+    evidence_title: "JD 要求与简历证据",
+    role_detected: "识别岗位",
+    role_confidence: (n) => `规则识别置信度 ${n}%`,
+    role_confidence_warning: "此置信度只描述岗位类型的规则匹配，不是录用概率、简历评分或适配度结论。",
+    coverage_title: "关键词覆盖",
+    coverage_ratio: "覆盖比例",
+    coverage_unavailable: "暂不可计算",
+    coverage_known: "已识别要求",
+    coverage_unknown: "未识别要求",
+    coverage_evidenced: "有原文证据",
+    coverage_uncertain: "证据不确定",
+    coverage_missing: "未找到证据",
+    requirement_title: "JD 要求分组",
+    priority_required: "必须要求",
+    priority_preferred: "加分项",
+    priority_unknown: "未分类要求",
+    jd_evidence: "JD 原文",
+    resume_evidence: "简历原文证据",
+    resume_evidence_empty: "未找到可支持该要求的简历原文。",
+    status_evidenced: "已有原文证据",
+    status_uncertain: "证据不确定",
+    status_not_found: "未找到简历证据",
+    rewrite_title: "简历改写建议",
+    rewrite_hint: "逐条接受、编辑或不采用。系统建议只来自简历原文；待确认事实不会默认导出。",
+    rewrite_source: "简历原文",
+    rewrite_suggested: "建议草稿",
+    rewrite_requirements: "对应要求",
+    rewrite_confirmed_facts: "已确认事实",
+    rewrite_pending: "待确认字段",
+    rewrite_empty: "当前没有基于原文生成的改写建议。",
+    decision_accept: "接受",
+    decision_edit: "编辑",
+    decision_reject: "不采用",
+    edit_suggestion: "编辑建议内容",
+    confirm_pending_facts: "已确认补充事实真实",
+    pending_export_blocked: "这条建议含待确认事实；仅接受不会导出，请编辑并确认真实后再导出。",
+    export_title: "导出与反馈",
+    export_button: "导出已确认草稿",
+    export_sidebar: "快捷导出草稿",
+    export_summary: (n) => `将导出 ${n} 条已接受或已编辑内容。`,
+    export_pending: (n) => `${n} 条待确认建议当前不会导出。`,
+    feedback_prompt: "这次证据分析对你有帮助吗？",
+    feedback_helpful: "有帮助",
+    feedback_neutral: "一般",
+    feedback_unhelpful: "无帮助",
+    feedback_thanks: "感谢反馈。反馈不会包含 JD、简历原文或建议文本。",
     match_reupload: "重新上传",
     match_view_gaps: (n) => `查看差距（${n} 项）`,
     /* 查漏补缺 */
     gap_title: "查漏补缺",
-    gap_hint: "以下能力在岗位 JD 中重要，但你的简历暂未体现，建议优先补齐：",
-    gap_resource: (n) => `学习资源：${n} ↗`,
+    gap_hint: "以下 JD 要求尚无明确简历原文证据。请只补充真实经历，不要为了覆盖关键词新增不存在的事实。",
     gap_back: "返回",
     /* 页脚 */
     footer: "JD 关键词覆盖与简历原文证据辅助",
@@ -110,8 +148,12 @@ createApp({
     const step = ref(1);
     const loading = ref(false);
     const error = ref("");
+    const requestId = ref("");
     const dragging = ref(false);
     const result = reactive({});
+    const suggestionDecisions = reactive({});
+    const confirmedPendingFacts = reactive({});
+    const feedbackRating = ref("");
     const fileInput = ref(null);
     const menuTrigger = ref(null);
     const privacyConsent = ref(false);
@@ -137,8 +179,10 @@ createApp({
     onUnmounted(() => { window.removeEventListener("resize", syncViewport); });
 
     // 步骤标题
+    const hasResult = computed(() => result.ok === true);
+
     const currentSteps = computed(() => {
-      if (!result.mode) {
+      if (!hasResult.value) {
         return [t("step_upload"), t("step_result"), ""];
       }
       return [t("step_upload"), t("step_analysis"), t("step_gaps")];
@@ -174,9 +218,8 @@ createApp({
     const currentModeLabel = computed(() => t("mode_complete"));
 
     const resultSummary = computed(() => {
-      if (!result.mode) return t("sidebar_no_result");
-      if (result.mode === "complete") return t("sidebar_result_complete", result);
-      return t("sidebar_result_done");
+      if (!hasResult.value) return t("sidebar_no_result");
+      return t("sidebar_result_complete", result);
     });
 
     // ── 页面导航 ──────────────────────────────────────────────
@@ -198,8 +241,8 @@ createApp({
       // 首页永远可用
       if (id === "home") return true;
       // 分析页：必须有分析结果
-      if (id === "analysis") return !!result.mode;
-      if (id === "gaps") return result.mode === "complete";
+      if (id === "analysis") return hasResult.value;
+      if (id === "gaps") return hasResult.value;
       return false;
     };
 
@@ -224,6 +267,90 @@ createApp({
       return privacyConsent.value && form.jd.trim().length > 10 && !!form.file;
     });
 
+    const requirements = computed(() =>
+      Array.isArray(result.requirements) ? result.requirements : []
+    );
+    const rewriteSuggestions = computed(() =>
+      Array.isArray(result.rewrite_suggestions) ? result.rewrite_suggestions : []
+    );
+    const priorityGroups = computed(() => {
+      const definitions = [
+        { id: "required", label: t("priority_required") },
+        { id: "preferred", label: t("priority_preferred") },
+        { id: "unknown", label: t("priority_unknown") },
+      ];
+      return definitions
+        .map((group) => ({
+          ...group,
+          items: requirements.value.filter((item) => {
+            if (group.id === "unknown") {
+              return !["required", "preferred"].includes(item.priority);
+            }
+            return item.priority === group.id;
+          }),
+        }))
+        .filter((group) => group.items.length > 0);
+    });
+    const gapRequirements = computed(() =>
+      requirements.value.filter((item) => item.resume_status !== "evidenced")
+    );
+
+    const clearReactiveObject = (target) => {
+      Object.keys(target).forEach((key) => delete target[key]);
+    };
+
+    const initializeSuggestionDecisions = (suggestions) => {
+      clearReactiveObject(suggestionDecisions);
+      clearReactiveObject(confirmedPendingFacts);
+      (suggestions || []).forEach((suggestion) => {
+        if (
+          suggestion.default_export === true &&
+          suggestion.fact_status === "confirmed_source_only"
+        ) {
+          suggestionDecisions[suggestion.suggestion_id] = {
+            decision: "accepted",
+            text: suggestion.suggested,
+          };
+        }
+      });
+    };
+
+    const setSuggestionDecision = (suggestion, decision) => {
+      const current = suggestionDecisions[suggestion.suggestion_id];
+      suggestionDecisions[suggestion.suggestion_id] = {
+        decision,
+        text: current?.text || suggestion.suggested || suggestion.source || "",
+      };
+      if (decision !== "edited") {
+        confirmedPendingFacts[suggestion.suggestion_id] = false;
+      }
+    };
+
+    const isSuggestionExportable = (suggestion) => {
+      const state = suggestionDecisions[suggestion.suggestion_id];
+      if (!state || !["accepted", "edited"].includes(state.decision)) return false;
+      const text = (state.text || "").trim();
+      if (!text) return false;
+      if (suggestion.fact_status === "confirmed_source_only") return true;
+      if (suggestion.fact_status !== "pending_confirmation") return false;
+      return (
+        state.decision === "edited" &&
+        text !== (suggestion.suggested || "").trim() &&
+        confirmedPendingFacts[suggestion.suggestion_id] === true
+      );
+    };
+
+    const exportableSuggestions = computed(() =>
+      rewriteSuggestions.value.filter(isSuggestionExportable)
+    );
+    const pendingExcludedCount = computed(() =>
+      rewriteSuggestions.value.filter(
+        (suggestion) =>
+          suggestion.fact_status === "pending_confirmation" &&
+          !isSuggestionExportable(suggestion)
+      ).length
+    );
+
     const closeSidebar = () => { if (isMobile.value) sidebarOpen.value = false; };
     const toggleSidebar = async () => {
       if (isMobile.value) {
@@ -239,7 +366,7 @@ createApp({
 
     const jumpToStep = (targetStep) => {
       if (targetStep < 1 || targetStep > 3) return;
-      if (targetStep === 1 || result.mode === "complete") step.value = targetStep;
+      if (targetStep === 1 || hasResult.value) step.value = targetStep;
       closeSidebar();
     };
 
@@ -253,89 +380,149 @@ createApp({
       if (f) { form.file = f; form.fileName = f.name; error.value = ""; }
     };
 
+    const showApiError = (data, status) => {
+      const code = data?.error_code;
+      error.value =
+        API_ERROR_MESSAGES[code] ||
+        data?.message ||
+        (status ? t("error_server", status) : t("error_fail"));
+      requestId.value = data?.request_id || "";
+    };
+
     // ── 提交 ──────────────────────────────────────────────────
     const submit = async () => {
       if (!canSubmit.value) return;
-      loading.value = true; error.value = "";
+      loading.value = true;
+      error.value = "";
+      requestId.value = "";
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        ANALYSIS_TIMEOUT_MS
+      );
       try {
         const fd = new FormData();
-        fd.append("mode", "complete");
         fd.append("role", form.role);
-        fd.append("locale", "zh");
         fd.append("privacy_consent_version", PRIVACY_CONSENT_VERSION);
         fd.append("jd", form.jd);
         fd.append("resume", form.file);
 
-        const resp = await fetch("/api/analyze", { method: "POST", body: fd });
+        const resp = await fetch("/api/v1/analyses", {
+          method: "POST",
+          body: fd,
+          signal: controller.signal,
+        });
         const contentType = resp.headers.get("content-type") || "";
         const data = contentType.includes("application/json") ? await resp.json() : null;
-        if (!resp.ok) { error.value = data?.error || t("error_server", resp.status); return; }
-        if (!data.ok) { error.value = data.error || t("error_fail"); return; }
+        if (!resp.ok || !data?.ok) {
+          showApiError(data, resp.status);
+          return;
+        }
+        clearReactiveObject(result);
         Object.assign(result, data);
+        initializeSuggestionDecisions(data.rewrite_suggestions);
+        feedbackRating.value = "";
         step.value = 2;
-      } catch (e) { error.value = t("error_network"); }
-      finally { loading.value = false; }
+      } catch (e) {
+        error.value = e?.name === "AbortError" ? t("error_timeout") : t("error_network");
+      } finally {
+        window.clearTimeout(timeoutId);
+        loading.value = false;
+      }
     };
 
     const statusLabel = (s) => ({
-      confirmed: { text: t("status_confirmed"), cls: "badge-green" },
-      pending_confirmation: { text: t("status_pending"), cls: "badge-orange" },
-      model_inference: { text: t("status_infer"), cls: "badge-gray" },
-    }[s] || { text: s, cls: "badge-gray" });
+      evidenced: { text: t("status_evidenced"), cls: "status-evidenced" },
+      uncertain: { text: t("status_uncertain"), cls: "status-uncertain" },
+      not_found: { text: t("status_not_found"), cls: "status-not-found" },
+    }[s] || { text: t("status_not_found"), cls: "status-not-found" });
+
+    const pendingFieldLabel = (field) => ({
+      metric: "结果或指标",
+      time_range: "时间范围",
+      personal_contribution: "个人贡献",
+    }[field] || field);
+
+    const requirementLabels = (ids) =>
+      (ids || []).map((id) =>
+        requirements.value.find((item) => item.requirement_id === id)?.label || id
+      );
+
+    const suggestionJdEvidence = (ids) =>
+      [...new Set(
+        (ids || [])
+          .map((id) => requirements.value.find((item) => item.requirement_id === id)?.jd_evidence)
+          .filter(Boolean)
+      )];
+
+    const warningLabel = (warning) => ({
+      KNOWN_REQUIREMENT_COVERAGE_LOW: "当前 JD 中可识别的已知要求较少，请逐条核对下方 JD 原文。",
+    }[warning] || "分析结果存在需人工核对的内容。");
+
+    const roleConfidencePercent = computed(() => {
+      const value = Number(result.role?.confidence);
+      return Number.isFinite(value) ? Math.round(value * 100) : 0;
+    });
 
     // ── 重置 ──────────────────────────────────────────────────
     const reset = () => {
       step.value = 1;
       form.jd = ""; form.file = null; form.fileName = ""; form.role = "auto";
       error.value = "";
-      Object.keys(result).forEach((k) => delete result[k]);
+      requestId.value = "";
+      feedbackRating.value = "";
+      clearReactiveObject(result);
+      clearReactiveObject(suggestionDecisions);
+      clearReactiveObject(confirmedPendingFacts);
+      if (fileInput.value) fileInput.value.value = "";
       closeSidebar();
     };
 
     // ── 下载 ──────────────────────────────────────────────────
-    const downloadOptimizedResume = () => {
-      const opt = result.resume_optimization;
-      if (!opt) return;
-      let md = `# JD 定制简历优化草稿 · ${result.role_label}\n\n> 仅为优化草稿，使用前请确认所有待补充事实。\n\n`;
-      md += "## JD 关键词\n";
-      md += `${(opt.target_keywords || []).join(", ") || "暂未识别"}\n\n`;
-      md += "## 待补充关键词\n";
-      md += `${(opt.missing_keywords || []).join(", ") || "无明显缺口"}\n\n`;
-      md += "## Bullet 改写草稿\n";
-      (opt.bullet_rewrites || []).forEach((item, index) => {
-        md += `### ${index + 1}. ${item.suggested_bullet}\n`;
-        md += `- 原文：${item.source}\n`;
-        md += `- 关联关键词：${(item.matched_keywords || item.matched_skills || []).join(", ")}\n`;
-        md += `- 量化补充：${item.quantification_prompt}\n\n`;
-      });
-      md += "## 量化补充问题\n";
-      (opt.quantification_prompts || []).forEach((item) => {
-        md += `- ${item.question}\n`;
-      });
-      md += `\n> ${opt.fact_policy || ""}\n`;
+    const downloadConfirmedDraft = () => {
+      let md = "# JD 定制简历草稿\n\n";
+      md += "> 本草稿由用户确认的原文与修改组成；请在投递前进行最终人工检查。\n\n";
+      md += "## 已确认内容\n\n";
+      if (exportableSuggestions.value.length === 0) {
+        md += "当前没有可导出的已确认内容。\n";
+      } else {
+        exportableSuggestions.value.forEach((suggestion) => {
+          const text = suggestionDecisions[suggestion.suggestion_id].text.trim();
+          md += `- ${text.replace(/\n/g, "\n  ")}\n`;
+        });
+      }
       const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
       const anchor = document.createElement("a");
       anchor.href = URL.createObjectURL(blob);
-      anchor.download = "JD定制简历优化草稿.md";
+      anchor.download = "简历优化草稿.md";
       anchor.click();
       URL.revokeObjectURL(anchor.href);
+    };
+
+    const setFeedbackRating = (rating) => {
+      feedbackRating.value = rating;
     };
 
     return {
       // i18n
       t,
       // 状态
-      step, loading, error, dragging, result, fileInput, menuTrigger,
+      step, loading, error, requestId, dragging, result, fileInput, menuTrigger,
       isMobile, sidebarOpen, sidebarCollapsed, appShellClass,
       sidebarExpanded, sidebarToggleLabel, mobileSidebarHidden,
-      currentSteps, availableSteps, currentModeLabel, resultSummary,
+      currentSteps, availableSteps, currentModeLabel, resultSummary, hasResult,
       // 表单
       roleOptions, form, privacyConsent, canSubmit,
       onFile, onDrop, submit,
-      // 台账
-      statusLabel,
+      // 结果与用户决定
+      priorityGroups, gapRequirements, rewriteSuggestions,
+      suggestionDecisions, confirmedPendingFacts,
+      exportableSuggestions, pendingExcludedCount,
+      statusLabel, pendingFieldLabel, requirementLabels, suggestionJdEvidence,
+      warningLabel, roleConfidencePercent, setSuggestionDecision,
+      feedbackRating, setFeedbackRating,
       // 动作
-      reset, downloadOptimizedResume, toggleSidebar, closeSidebar, jumpToStep,
+      reset, downloadConfirmedDraft, toggleSidebar, closeSidebar, jumpToStep,
       // 页面导航
       navItems, currentPage, isNavEnabled, navigateTo,
     };

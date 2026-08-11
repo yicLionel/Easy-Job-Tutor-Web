@@ -62,11 +62,11 @@
           <button class="sidebar-action primary-action" @click="jumpToStep(1)">{{ t("sidebar_new") }}</button>
           <button class="sidebar-action" @click="reset">{{ t("sidebar_clear") }}</button>
           <button
-            v-if="result.mode === 'complete' && result.resume_optimization"
+            v-if="hasResult"
             class="sidebar-action"
-            @click="downloadOptimizedResume"
+            @click="downloadConfirmedDraft"
           >
-            {{ t("resume_opt_export") }}
+            {{ t("export_sidebar") }}
           </button>
         </section>
       </div>
@@ -142,115 +142,240 @@
           <button type="button" class="primary" :disabled="loading || !canSubmit" data-testid="analyze-submit" @click="submit">
             <span aria-live="polite" data-testid="loading-status">{{ loading ? t("uploading") : t("upload_submit") }}</span>
           </button>
-          <span v-if="error" class="err" role="alert" data-testid="error-alert">{{ error }}</span>
+          <div v-if="error" class="err" role="alert" data-testid="error-alert">
+            <span>{{ error }}</span>
+            <span v-if="requestId" class="request-id">{{ t("request_id", requestId) }}</span>
+          </div>
         </div>
       </section>
 
-      <!-- ════════════ 步骤 2：完整分析 ════════════ -->
-      <template v-if="step === 2 && result.mode === 'complete'">
-        <section class="card">
-          <h2>{{ t("match_title", result.role_label) }}</h2>
-          <p class="matched">{{ t("matched_skills", result.matched_skills) }}</p>
-
-          <!-- 事实台账 -->
-          <div class="fact-ledger" v-if="result.fact_ledger">
-            <h3 class="block-title">{{ t("ledger_title", result.fact_ledger.length) }}</h3>
-            <p class="hint">{{ t("ledger_hint") }}</p>
-            <div class="ledger-scroll">
-              <table class="ledger-table">
-                <thead>
-                  <tr>
-                    <th>{{ t("ledger_skill") }}</th>
-                    <th>{{ t("ledger_dim") }}</th>
-                    <th>{{ t("ledger_imp") }}</th>
-                    <th>{{ t("ledger_status") }}</th>
-                    <th>{{ t("ledger_evidence") }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="f in result.fact_ledger" :key="f.skill" :class="{ 'row-infer': f.status === 'model_inference' }">
-                    <td><b>{{ f.skill }}</b></td>
-                    <td><span class="dim-tag">{{ f.dim }}</span></td>
-                    <td><span :class="['imp-sm', 'i' + f.importance]">P{{ f.importance }}</span></td>
-                    <td><span :class="['badge', statusLabel(f.status).cls]">{{ statusLabel(f.status).text }}</span></td>
-                    <td class="evidence-cell">{{ f.evidence || '—' }}</td>
-                  </tr>
-                </tbody>
-              </table>
+      <!-- ════════════ 步骤 2：证据分析与确认 ════════════ -->
+      <div v-if="step === 2 && hasResult" class="result-flow" data-testid="analysis-result">
+        <section class="card result-card" data-result-section="role">
+          <h2>{{ t("evidence_title") }}</h2>
+          <div class="role-summary">
+            <div>
+              <span class="section-kicker">{{ t("role_detected") }}</span>
+              <strong class="role-result">{{ result.role.label }}</strong>
             </div>
+            <p class="confidence-warning">
+              <strong>{{ t("role_confidence", roleConfidencePercent) }}</strong>
+              <span>{{ t("role_confidence_warning") }}</span>
+            </p>
           </div>
+          <ul v-if="result.warnings?.length" class="analysis-warnings" aria-label="分析提醒">
+            <li v-for="warning in result.warnings" :key="warning">{{ warningLabel(warning) }}</li>
+          </ul>
+        </section>
 
-          <div class="resume-optimization" v-if="result.resume_optimization">
-            <h3 class="block-title">{{ t("resume_opt_title") }}</h3>
-            <p class="hint">{{ t("resume_opt_hint") }}</p>
-            <div class="optimization-policy">{{ t("resume_opt_policy") }}</div>
-
-            <div class="optimization-keywords">
-              <div class="optimization-keyword-group">
-                <strong>{{ t("resume_opt_target") }}</strong>
-                <div class="tag-list">
-                  <span v-for="keyword in result.resume_optimization.target_keywords" :key="keyword" class="tag tag-tech">{{ keyword }}</span>
-                  <span v-if="!result.resume_optimization.target_keywords?.length" class="empty-hint">—</span>
-                </div>
-              </div>
-              <div class="optimization-keyword-group">
-                <strong>{{ t("resume_opt_missing") }}</strong>
-                <div class="tag-list">
-                  <span v-for="keyword in result.resume_optimization.missing_keywords" :key="keyword" class="tag tag-preferred">{{ keyword }}</span>
-                  <span v-if="!result.resume_optimization.missing_keywords?.length" class="empty-hint">—</span>
-                </div>
-              </div>
+        <section class="card result-card" data-result-section="coverage">
+          <h2>{{ t("coverage_title") }}</h2>
+          <div class="coverage-grid">
+            <div class="coverage-metric coverage-primary">
+              <strong>
+                {{ result.coverage_summary.keyword_coverage === null
+                  ? t("coverage_unavailable")
+                  : result.coverage_summary.keyword_coverage + "%" }}
+              </strong>
+              <span>{{ t("coverage_ratio") }}</span>
             </div>
-
-            <h4 class="optimization-subtitle">{{ t("resume_opt_bullets") }}</h4>
-            <div v-if="result.resume_optimization.bullet_rewrites?.length" class="optimization-list">
-              <article v-for="(item, index) in result.resume_optimization.bullet_rewrites" :key="item.source + index" class="optimization-item">
-                <div class="optimization-index">{{ index + 1 }}</div>
-                <div class="optimization-content">
-                  <div class="optimization-label">{{ t("resume_opt_source") }}</div>
-                  <p class="optimization-source">{{ item.source }}</p>
-                  <div class="optimization-label">{{ t("resume_opt_suggested") }}</div>
-                  <p class="optimization-suggested">{{ item.suggested_bullet }}</p>
-                  <div class="optimization-meta" v-if="item.matched_keywords?.length">
-                    <span>{{ t("resume_opt_keywords") }}：</span>
-                    <span v-for="keyword in item.matched_keywords" :key="keyword" class="imp-tag">{{ keyword }}</span>
-                  </div>
-                  <p class="optimization-metric"><strong>{{ t("resume_opt_metric") }}：</strong>{{ item.quantification_prompt }}</p>
-                </div>
-              </article>
+            <div class="coverage-metric">
+              <strong>{{ result.coverage_summary.known_requirement_count }}</strong>
+              <span>{{ t("coverage_known") }}</span>
             </div>
-            <p v-else class="empty-hint">{{ t("resume_opt_empty") }}</p>
-
-            <div class="actions">
-              <button class="primary" @click="downloadOptimizedResume">{{ t("resume_opt_export") }}</button>
+            <div class="coverage-metric">
+              <strong>{{ result.coverage_summary.unknown_requirement_count }}</strong>
+              <span>{{ t("coverage_unknown") }}</span>
             </div>
-          </div>
-
-          <div class="actions">
-            <button class="ghost" @click="reset">{{ t("match_reupload") }}</button>
-            <button class="primary" @click="step = 3">{{ t("match_view_gaps", result.gap_count) }}</button>
+            <div class="coverage-metric">
+              <strong>{{ result.coverage_summary.evidenced_count }}</strong>
+              <span>{{ t("coverage_evidenced") }}</span>
+            </div>
+            <div class="coverage-metric">
+              <strong>{{ result.coverage_summary.uncertain_count }}</strong>
+              <span>{{ t("coverage_uncertain") }}</span>
+            </div>
+            <div class="coverage-metric">
+              <strong>{{ result.coverage_summary.missing_evidence_count }}</strong>
+              <span>{{ t("coverage_missing") }}</span>
+            </div>
           </div>
         </section>
-      </template>
+
+        <section class="card result-card" data-result-section="requirements">
+          <h2>{{ t("requirement_title") }}</h2>
+          <div class="requirement-groups">
+            <section v-for="group in priorityGroups" :key="group.id" class="requirement-group">
+              <h3>{{ group.label }} <span>{{ group.items.length }}</span></h3>
+              <article
+                v-for="requirement in group.items"
+                :key="requirement.requirement_id"
+                class="requirement-card"
+                data-testid="requirement-card"
+              >
+                <header class="requirement-head">
+                  <strong>{{ requirement.label }}</strong>
+                  <span :class="['requirement-status', statusLabel(requirement.resume_status).cls]">
+                    {{ statusLabel(requirement.resume_status).text }}
+                  </span>
+                </header>
+                <div class="evidence-block">
+                  <h4>{{ t("jd_evidence") }}</h4>
+                  <blockquote>{{ requirement.jd_evidence }}</blockquote>
+                </div>
+                <div class="evidence-block">
+                  <h4>{{ t("resume_evidence") }}</h4>
+                  <ul v-if="requirement.resume_evidence.length" class="evidence-list">
+                    <li v-for="evidence in requirement.resume_evidence" :key="evidence">{{ evidence }}</li>
+                  </ul>
+                  <p v-else class="empty-hint">{{ t("resume_evidence_empty") }}</p>
+                </div>
+              </article>
+            </section>
+          </div>
+        </section>
+
+        <section class="card result-card" data-result-section="rewrites">
+          <h2>{{ t("rewrite_title") }}</h2>
+          <p class="hint">{{ t("rewrite_hint") }}</p>
+          <div v-if="rewriteSuggestions.length" class="suggestion-list">
+            <article
+              v-for="suggestion in rewriteSuggestions"
+              :key="suggestion.suggestion_id"
+              class="suggestion-card"
+              data-testid="suggestion-card"
+            >
+              <div class="suggestion-block">
+                <h3>{{ t("rewrite_source") }}</h3>
+                <p>{{ suggestion.source }}</p>
+              </div>
+              <div class="suggestion-block suggested-block">
+                <h3>{{ t("rewrite_suggested") }}</h3>
+                <p>{{ suggestion.suggested }}</p>
+              </div>
+              <dl class="suggestion-context">
+                <div>
+                  <dt>{{ t("rewrite_requirements") }}</dt>
+                  <dd>{{ requirementLabels(suggestion.requirement_ids).join("、") }}</dd>
+                </div>
+                <div>
+                  <dt>{{ t("jd_evidence") }}</dt>
+                  <dd>{{ suggestionJdEvidence(suggestion.requirement_ids).join("；") }}</dd>
+                </div>
+                <div>
+                  <dt>{{ t("rewrite_confirmed_facts") }}</dt>
+                  <dd>{{ suggestion.source }}</dd>
+                </div>
+                <div v-if="suggestion.pending_fields.length">
+                  <dt>{{ t("rewrite_pending") }}</dt>
+                  <dd>{{ suggestion.pending_fields.map(pendingFieldLabel).join("、") }}</dd>
+                </div>
+              </dl>
+
+              <div class="decision-actions" role="group" :aria-label="'处理建议 ' + suggestion.suggestion_id">
+                <button
+                  type="button"
+                  class="ghost"
+                  :class="{ selected: suggestionDecisions[suggestion.suggestion_id]?.decision === 'accepted' }"
+                  :aria-pressed="suggestionDecisions[suggestion.suggestion_id]?.decision === 'accepted'"
+                  @click="setSuggestionDecision(suggestion, 'accepted')"
+                >{{ t("decision_accept") }}</button>
+                <button
+                  type="button"
+                  class="ghost"
+                  :class="{ selected: suggestionDecisions[suggestion.suggestion_id]?.decision === 'edited' }"
+                  :aria-pressed="suggestionDecisions[suggestion.suggestion_id]?.decision === 'edited'"
+                  @click="setSuggestionDecision(suggestion, 'edited')"
+                >{{ t("decision_edit") }}</button>
+                <button
+                  type="button"
+                  class="ghost"
+                  :class="{ selected: suggestionDecisions[suggestion.suggestion_id]?.decision === 'rejected' }"
+                  :aria-pressed="suggestionDecisions[suggestion.suggestion_id]?.decision === 'rejected'"
+                  @click="setSuggestionDecision(suggestion, 'rejected')"
+                >{{ t("decision_reject") }}</button>
+              </div>
+
+              <p
+                v-if="suggestion.fact_status === 'pending_confirmation' && suggestionDecisions[suggestion.suggestion_id]?.decision === 'accepted'"
+                class="pending-note"
+              >{{ t("pending_export_blocked") }}</p>
+
+              <div
+                v-if="suggestionDecisions[suggestion.suggestion_id]?.decision === 'edited'"
+                class="suggestion-editor"
+              >
+                <label :for="'suggestion-edit-' + suggestion.suggestion_id">{{ t("edit_suggestion") }}</label>
+                <textarea
+                  :id="'suggestion-edit-' + suggestion.suggestion_id"
+                  v-model="suggestionDecisions[suggestion.suggestion_id].text"
+                  rows="4"
+                ></textarea>
+                <label
+                  v-if="suggestion.fact_status === 'pending_confirmation'"
+                  class="fact-confirmation"
+                  :for="'fact-confirmation-' + suggestion.suggestion_id"
+                >
+                  <input
+                    :id="'fact-confirmation-' + suggestion.suggestion_id"
+                    type="checkbox"
+                    v-model="confirmedPendingFacts[suggestion.suggestion_id]"
+                  />
+                  <span>{{ t("confirm_pending_facts") }}</span>
+                </label>
+              </div>
+            </article>
+          </div>
+          <p v-else class="empty-hint">{{ t("rewrite_empty") }}</p>
+        </section>
+
+        <section class="card result-card" data-result-section="export-feedback">
+          <h2>{{ t("export_title") }}</h2>
+          <div class="export-summary" aria-live="polite">
+            <p>{{ t("export_summary", exportableSuggestions.length) }}</p>
+            <p v-if="pendingExcludedCount">{{ t("export_pending", pendingExcludedCount) }}</p>
+          </div>
+          <div class="actions">
+            <button type="button" class="primary" @click="downloadConfirmedDraft">{{ t("export_button") }}</button>
+          </div>
+          <div class="feedback-panel">
+            <h3>{{ t("feedback_prompt") }}</h3>
+            <div class="feedback-actions" role="group" :aria-label="t('feedback_prompt')">
+              <button type="button" class="ghost" :aria-pressed="feedbackRating === 'helpful'" @click="setFeedbackRating('helpful')">{{ t("feedback_helpful") }}</button>
+              <button type="button" class="ghost" :aria-pressed="feedbackRating === 'neutral'" @click="setFeedbackRating('neutral')">{{ t("feedback_neutral") }}</button>
+              <button type="button" class="ghost" :aria-pressed="feedbackRating === 'unhelpful'" @click="setFeedbackRating('unhelpful')">{{ t("feedback_unhelpful") }}</button>
+            </div>
+            <p v-if="feedbackRating" class="feedback-thanks" role="status">{{ t("feedback_thanks") }}</p>
+          </div>
+          <div class="actions result-navigation">
+            <button type="button" class="ghost" @click="reset">{{ t("match_reupload") }}</button>
+            <button type="button" class="primary" @click="step = 3">{{ t("match_view_gaps", gapRequirements.length) }}</button>
+          </div>
+        </section>
+      </div>
 
       <!-- ════════════ 步骤 3：查漏补缺 ════════════ -->
-      <section v-if="step === 3 && result.mode === 'complete'" class="card">
+      <section v-if="step === 3 && hasResult" class="card">
         <h2>{{ t("gap_title") }}</h2>
         <p class="hint">{{ t("gap_hint") }}</p>
-        <div class="gaps">
-          <div v-for="g in result.gaps" :key="g.label" class="gap">
-            <span :class="['imp', 'i' + g.importance]">P{{ g.importance }}</span>
+        <div v-if="gapRequirements.length" class="gaps">
+          <article v-for="requirement in gapRequirements" :key="requirement.requirement_id" class="gap">
+            <span :class="['requirement-status', statusLabel(requirement.resume_status).cls]">
+              {{ statusLabel(requirement.resume_status).text }}
+            </span>
             <div class="gap-body">
-              <div class="gap-top"><b>{{ g.label }}</b><span class="dim-tag">{{ g.dim }}</span></div>
-              <p>{{ g.learn }}</p>
-              <a v-if="g.resource && g.resource.url" :href="g.resource.url" target="_blank" rel="noopener">
-                {{ t("gap_resource", g.resource.name) }}
-              </a>
+              <div class="gap-top"><b>{{ requirement.label }}</b></div>
+              <p><strong>{{ t("jd_evidence") }}：</strong>{{ requirement.jd_evidence }}</p>
+              <ul v-if="requirement.resume_evidence.length" class="evidence-list">
+                <li v-for="evidence in requirement.resume_evidence" :key="evidence">{{ evidence }}</li>
+              </ul>
+              <p v-else>{{ t("resume_evidence_empty") }}</p>
             </div>
-          </div>
+          </article>
         </div>
+        <p v-else class="empty-hint">当前每项已识别要求都有简历原文证据，请继续人工核对。</p>
         <div class="actions">
-          <button class="ghost" @click="step = 2">{{ t("gap_back") }}</button>
+          <button type="button" class="ghost" @click="step = 2">{{ t("gap_back") }}</button>
         </div>
       </section>
       </main>

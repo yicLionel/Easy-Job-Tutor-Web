@@ -1,0 +1,11 @@
+联系方式：audit@example.com
+
+教育背景
+某大学 计算机科学 本科
+
+项目经验
+主导 AI 求职助手从 0 到 1 上线，完成用户访谈、需求分析和 PRD 撰写。
+使用 Python 与 FastAPI 开发规则分析服务，邀请 20 名同学试用。
+
+技能
+Python、FastAPI、Vue
