@@ -149,6 +149,17 @@ createApp({
       "mobile-shell": isMobile.value,
     }));
 
+    const sidebarExpanded = computed(() =>
+      isMobile.value ? sidebarOpen.value : !sidebarCollapsed.value
+    );
+
+    const sidebarToggleLabel = computed(() => {
+      if (isMobile.value) {
+        return sidebarOpen.value ? t("sidebar_hide") : t("sidebar_expand");
+      }
+      return sidebarCollapsed.value ? t("sidebar_expand") : t("sidebar_collapse");
+    });
+
     const availableSteps = computed(() =>
       currentSteps.value
         .map((label, index) => ({ step: index + 1, label }))
@@ -304,6 +315,7 @@ createApp({
       // 状态
       step, loading, error, dragging, result, fileInput,
       isMobile, sidebarOpen, sidebarCollapsed, appShellClass,
+      sidebarExpanded, sidebarToggleLabel,
       currentSteps, availableSteps, currentModeLabel, resultSummary,
       // 表单
       roleOptions, form, privacyConsent, canSubmit,

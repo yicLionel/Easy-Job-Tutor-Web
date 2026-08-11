@@ -18,6 +18,18 @@
 }
 
 * { box-sizing: border-box; }
+.sr-only,
+.pill input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -173,11 +185,13 @@ body {
 .sidebar-nav-item.active .sidebar-nav-icon {
   background: var(--brand-soft);
 }
-.sidebar-nav-item.disabled {
+.sidebar-nav-item.disabled,
+.sidebar-nav-item:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.sidebar-nav-item.disabled:hover {
+.sidebar-nav-item.disabled:hover,
+.sidebar-nav-item:disabled:hover {
   border-color: transparent;
   background: #fff;
 }
@@ -346,10 +360,19 @@ body {
 .role-pills { display: flex; gap: 10px; flex-wrap: wrap; }
 .pill {
   border: 1.5px solid var(--line); border-radius: 999px; padding: 8px 16px;
-  font-size: 13.5px; cursor: pointer; background: #fff; transition: .15s;
+  position: relative; font-size: 13.5px; cursor: pointer; background: #fff; transition: .15s;
 }
-.pill input { display: none; }
 .pill.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+.pill:has(input:focus-visible),
+.upload:has(.sr-only:focus-visible) {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
 
 textarea {
   width: 100%; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px;
@@ -421,14 +444,40 @@ button { cursor: pointer; border: none; border-radius: 10px; font-size: 14px; pa
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
 
 @media (max-width: 960px) {
+  .main-shell,
+  .app-shell.sidebar-collapsed .main-shell { margin-left: 0; }
+  .sidebar {
+    transform: translateX(-100%);
+    max-width: min(320px, 86vw);
+    box-shadow: 0 12px 42px rgba(15, 23, 42, 0.18);
+  }
+  .sidebar-open .sidebar,
+  .app-shell.sidebar-open .sidebar { transform: translateX(0); }
+  .container, .card, .topbar {
+    min-width: 0;
+    width: 100%;
+  }
+  .ledger-scroll, .compare-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
   .topbar, .stepper, .container { padding-left: 20px; padding-right: 20px; }
 }
 
 @media (max-width: 640px) {
   .topbar, .stepper, .container { padding-left: 16px; padding-right: 16px; }
+  .card { padding: 20px 16px; }
   .audience { text-align: left; }
   .brand-title-row { flex-wrap: wrap; }
   .menu-trigger { display: inline-grid; }
+  .gap, .optimization-item, .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .actions button {
+    width: 100%;
+    min-height: 44px;
+  }
 }
 
 /* ── Gate 模式选择器 ─────────────────────────────────── */

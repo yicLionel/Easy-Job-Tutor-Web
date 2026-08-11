@@ -8,10 +8,11 @@
   <script src="/vendor/vue.global.prod.js"></script>
 </head>
 <body>
-  <div id="app" :class="['app-shell', appShellClass]">
+  <div id="app">
+    <div :class="['app-shell', appShellClass]" data-testid="app-shell">
     <div v-if="isMobile && sidebarOpen" class="sidebar-mask" @click="closeSidebar"></div>
 
-    <aside class="sidebar">
+    <aside id="app-sidebar" class="sidebar" data-testid="sidebar">
       <div class="sidebar-top">
         <div class="sidebar-brand">
           <span class="logo">✦</span>
@@ -20,8 +21,9 @@
             <p>{{ t("app_subtitle") }}</p>
           </div>
         </div>
-        <button class="sidebar-toggle" @click="toggleSidebar"
-                :title="isMobile ? t('sidebar_hide') : (sidebarCollapsed ? t('sidebar_expand') : t('sidebar_collapse'))">
+        <button type="button" class="sidebar-toggle" @click="toggleSidebar"
+                aria-controls="app-sidebar" :aria-expanded="sidebarExpanded"
+                :aria-label="sidebarToggleLabel" :title="sidebarToggleLabel">
           {{ isMobile ? '✕' : (sidebarCollapsed ? '→' : '←') }}
         </button>
       </div>
@@ -42,6 +44,7 @@
             :key="item.id"
             class="sidebar-nav-item"
             :class="{ active: currentPage === item.id, disabled: !isNavEnabled(item.id) }"
+            :disabled="!isNavEnabled(item.id)"
             @click="navigateTo(item.id)"
           >
             <span class="sidebar-nav-icon">{{ item.icon }}</span>
@@ -70,7 +73,9 @@
     <div class="main-shell">
       <header class="topbar">
         <div class="topbar-left">
-          <button class="menu-trigger" @click="toggleSidebar">☰</button>
+          <button type="button" class="menu-trigger" @click="toggleSidebar"
+                  aria-controls="app-sidebar" :aria-expanded="sidebarExpanded"
+                  :aria-label="sidebarToggleLabel">☰</button>
           <div class="brand">
             <div>
               <div class="brand-title-row">
@@ -104,15 +109,17 @@
         <p class="hint">{{ t("upload_hint") }}</p>
         <p class="capability-limit">本工具提供 JD 关键词覆盖与简历原文证据辅助，不预测录用结果，也不代表招聘方或 ATS 评分。</p>
 
-        <label class="field-label">{{ t("upload_jd_label") }}</label>
-        <textarea v-model="form.jd" rows="7" :placeholder="t('upload_jd_placeholder')"></textarea>
+        <label class="field-label" for="jd-input">{{ t("upload_jd_label") }}</label>
+        <textarea id="jd-input" v-model="form.jd" rows="7" :placeholder="t('upload_jd_placeholder')"
+                  data-testid="jd-input"></textarea>
 
-        <label class="field-label">{{ t("upload_resume_label") }}</label>
+        <label class="field-label" for="resume-input">{{ t("upload_resume_label") }}</label>
         <div class="upload" :class="{ drag: dragging }"
              @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
              @drop.prevent="onDrop">
-          <input type="file" ref="fileInput" accept=".pdf,.docx,.txt" hidden @change="onFile" />
-          <button class="ghost" @click="$refs.fileInput.click()">{{ t("upload_select") }}</button>
+          <input id="resume-input" type="file" ref="fileInput" accept=".pdf,.docx,.txt"
+                 class="sr-only" data-testid="resume-input" @change="onFile" />
+          <button type="button" class="ghost" data-testid="resume-select" @click="$refs.fileInput.click()">{{ t("upload_select") }}</button>
           <span class="fname">{{ form.fileName || t("upload_drag") }}</span>
         </div>
 
@@ -125,15 +132,15 @@
         </div>
 
         <label class="consent-row" for="privacy-consent">
-          <input id="privacy-consent" type="checkbox" v-model="privacyConsent" />
+          <input id="privacy-consent" type="checkbox" v-model="privacyConsent" data-testid="privacy-consent" />
           <span>我已阅读并同意 <a href="/privacy.html" target="_blank" rel="noopener">隐私说明</a> 与 <a href="/terms.html" target="_blank" rel="noopener">使用条款</a></span>
         </label>
 
         <div class="actions">
-          <button class="primary" :disabled="loading || !canSubmit" @click="submit">
-            {{ loading ? t("uploading") : t("upload_submit") }}
+          <button type="button" class="primary" :disabled="loading || !canSubmit" data-testid="analyze-submit" @click="submit">
+            <span aria-live="polite" data-testid="loading-status">{{ loading ? t("uploading") : t("upload_submit") }}</span>
           </button>
-          <span v-if="error" class="err">{{ error }}</span>
+          <span v-if="error" class="err" role="alert" data-testid="error-alert">{{ error }}</span>
         </div>
       </section>
 
@@ -247,6 +254,7 @@
       </main>
 
       <footer class="foot">{{ t("footer") }}</footer>
+    </div>
     </div>
   </div>
 

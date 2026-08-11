@@ -64,3 +64,22 @@ test("public complete analysis shows evidence without scores or deferred feature
   await expect(page.getByText("学习路线")).toHaveCount(0);
   await expect(page.getByText("面试辅导")).toHaveCount(0);
 });
+
+test("390px shell has no page overflow and sidebar starts closed", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const metrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    sidebarTransform: getComputedStyle(document.querySelector(".sidebar")).transform
+  }));
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+  expect(metrics.sidebarTransform).not.toBe("none");
+});
+
+test("core form is keyboard-addressable", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByLabel("岗位 JD")).toBeVisible();
+  await expect(page.getByLabel("上传简历")).toBeAttached();
+  await expect(page.getByLabel(/我已阅读并同意/)).toBeAttached();
+});
