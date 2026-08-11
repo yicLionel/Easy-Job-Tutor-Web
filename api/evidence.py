@@ -98,13 +98,17 @@ def _context_for_span(text: str, start: int, end: int) -> tuple[str, int, int]:
     )
 
 
-def _has_positive_coordinated_action(text: str) -> bool:
+def _has_distinct_entity_coordination_reset(
+    text: str,
+    current_keyword: str,
+) -> bool:
+    """Reset negation only between a distinct named entity and a new action."""
     for coordinator in re.finditer(r"\band\b", text, re.IGNORECASE):
-        preceding_words = re.findall(
-            r"[A-Za-z0-9]+",
+        entity = re.search(
+            r"(?<![A-Za-z0-9])([A-Z][A-Za-z0-9]*(?:[.+#-][A-Za-z0-9]+)*)\s*$",
             text[:coordinator.start()],
         )
-        if len(preceding_words) < 2:
+        if not entity or entity.group(1).casefold() == current_keyword.casefold():
             continue
         following = text[coordinator.end():]
         if any(
@@ -127,7 +131,10 @@ def _is_negated(text: str, span: tuple[int, int, str]) -> bool:
                 between = context[negation.end():keyword_start]
                 if (
                     not re.search(r"[,，;；]", between)
-                    and not _has_positive_coordinated_action(between)
+                    and not _has_distinct_entity_coordination_reset(
+                        between,
+                        span[2],
+                    )
                 ):
                     return True
                 continue

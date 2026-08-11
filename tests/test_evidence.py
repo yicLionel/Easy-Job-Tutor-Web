@@ -76,6 +76,15 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(match.status, "not_found")
         self.assertEqual(match.reason, "explicit_negation")
 
+    def test_shared_negation_with_generic_object_stays_negated(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "I never designed web apps and developed Python applications.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
     def test_positive_span_after_negated_contrast_is_evidenced(self):
         match = classify_skill_evidence(
             PYTHON,
