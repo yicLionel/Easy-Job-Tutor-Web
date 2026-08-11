@@ -16,6 +16,7 @@ importance: 1(锦上添花) ~ 5(必备)。匹配度按权重汇总；差距按 i
   评估与可观测、多模态、AI 安全护栏、AI 搜索/SEO、电商直播运营、用户分层/CRM 等技能。
 - 2026-07-30 v2 每个 skill 补充大量英文关键词等价物，支持英文 JD / 英文简历匹配。
 """
+import re
 
 DIMENSIONS = ["核心技能", "项目经验", "教育背景", "综合素养"]
 
@@ -861,15 +862,36 @@ INTERVIEW_BASE_EN = {
 }
 
 
-def auto_detect_role(text: str) -> str:
-    """根据 JD 文本粗略判断最匹配的岗位。"""
-    t = (text or "").lower()
+def _keyword_pattern(keyword: str) -> re.Pattern[str]:
+    """Build the lexical matcher shared by role and requirement discovery."""
+    escaped = re.escape(keyword)
+    if re.fullmatch(r"[A-Za-z0-9]+", keyword) and len(keyword) <= 3:
+        escaped = rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])"
+    return re.compile(escaped, re.IGNORECASE)
+
+
+def keyword_matches(keyword: str, text: str) -> bool:
+    """Return whether a knowledge keyword occurs without short-token bleed."""
+    return bool(keyword and _keyword_pattern(keyword).search(text or ""))
+
+
+def detect_role_with_confidence(text: str) -> tuple[str, float]:
+    """Return the best role and its share of all boundary-aware role hits."""
     scores = {}
     for rid, spec in ROLES.items():
-        s = 0
-        for sk in spec["skills"]:
-            s += sum(1 for k in sk["keywords"] if k.lower() in t)
-        scores[rid] = s
+        scores[rid] = sum(
+            1
+            for skill in spec["skills"]
+            for keyword in skill["keywords"]
+            if keyword_matches(keyword, text)
+        )
     best = max(scores, key=scores.get)
-    # 若完全无命中，回退到 ai_product
-    return best if scores[best] > 0 else "ai_product"
+    total = sum(scores.values())
+    if scores[best] == 0:
+        return "ai_product", 0.0
+    return best, round(scores[best] / total, 2)
+
+
+def auto_detect_role(text: str) -> str:
+    """根据 JD 文本粗略判断最匹配的岗位。"""
+    return detect_role_with_confidence(text)[0]

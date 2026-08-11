@@ -13,6 +13,7 @@ class ApiEntrypointTests(unittest.TestCase):
             route_paths = {route.path for route in app.routes}
             self.assertIn("/api/health", route_paths)
             self.assertIn("/api/analyze", route_paths)
+            self.assertIn("/api/v1/analyses", route_paths)
 
     def test_health_endpoint(self):
         from api.index import app

@@ -7,14 +7,18 @@ Skill 版本功能集成：
 - 事实台账：每个技能的来源、证据与状态追踪
 - JD 拆解分析 / 简历基线诊断 / 多 JD 对比
 """
+import hashlib
 import re
 from typing import Any
 
+from api.config import ALGORITHM_VERSION, KNOWLEDGE_BASE_VERSION
 from api.evidence import EvidenceMatch, classify_skill_evidence
 from api.knowledge import (
     ROLES,
     auto_detect_role,
+    detect_role_with_confidence,
     DIMENSIONS,
+    keyword_matches,
 )
 from api.knowledge import DIMENSIONS_EN, LABEL_EN, LEARN_EN, ROLE_LABEL_EN, ROLE_DESC_EN, INTERVIEW_BASE_EN
 
@@ -22,7 +26,7 @@ from api.knowledge import DIMENSIONS_EN, LABEL_EN, LEARN_EN, ROLE_LABEL_EN, ROLE
 
 def _hit(skill, text_lower: str) -> bool:
     """检查技能关键词是否在文本中命中。"""
-    return any(k.lower() in text_lower for k in skill["keywords"])
+    return any(keyword_matches(keyword, text_lower) for keyword in skill["keywords"])
 
 
 def _detect_sections(text: str) -> list:
@@ -234,6 +238,236 @@ def build_resume_optimization(
         "quantification_prompts": prompts[:6],
         "source_line_count": len(_resume_bullet_candidates(resume_text)),
         "fact_policy": "改写草稿只使用简历原文；带【待确认】内容需由用户补充真实事实后才能进入最终简历。",
+    }
+
+
+# ── Public-Beta contract ──────────────────────────────────
+
+_JD_TERMINATORS = re.compile(
+    r"\r?\n+|[。！？!?]+|(?:\.(?!\w)|(?<!\w)\.)"
+)
+_BULLET_PREFIX = re.compile(
+    r"^\s*(?:(?:[-*•●▪▸·]+)|(?:\d{1,3}[.)、])|(?:[（(]\d{1,3}[）)]))\s*"
+)
+_REQUIREMENT_LANGUAGE = re.compile(
+    r"(?:必须|要求|需要|职责|任职)|\b(?:must|required|responsible)\b",
+    re.IGNORECASE,
+)
+_PREFERRED_LANGUAGE = re.compile(
+    r"(?:加分|优先)|\bpreferred\b|\bnice\s+to\s+have\b",
+    re.IGNORECASE,
+)
+
+
+def split_jd_statements(jd_text: str) -> list[str]:
+    """Split and clean bounded JD statements while preserving their order."""
+    statements: list[str] = []
+    for raw_statement in _JD_TERMINATORS.split(jd_text or ""):
+        statement = _BULLET_PREFIX.sub("", raw_statement).strip()
+        if len(statement) < 6:
+            continue
+        statement = statement[:300].rstrip()
+        if statement not in statements:
+            statements.append(statement)
+    return statements
+
+
+def classify_requirement_priority(statement: str, known: bool) -> str:
+    """Classify a discovered JD statement without inferring unstated priority."""
+    if not known:
+        return "unknown"
+    if _PREFERRED_LANGUAGE.search(statement or ""):
+        return "preferred"
+    return "required"
+
+
+def _statement_has_skill(statement: str, skill: dict[str, Any]) -> bool:
+    return any(
+        keyword_matches(keyword, statement)
+        for keyword in skill.get("keywords", [])
+    )
+
+
+def _unknown_requirement(statement: str) -> dict[str, Any]:
+    normalized = re.sub(r"\s+", " ", statement).strip().casefold()
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
+    return {
+        "requirement_id": f"unknown-{digest}",
+        "label": "未识别要求",
+        "priority": classify_requirement_priority(statement, known=False),
+        "jd_evidence": statement,
+        "resume_status": "not_found",
+        "resume_evidence": [],
+        "reason": "unknown_requirement",
+    }
+
+
+def build_requirements(
+    jd_text: str,
+    skills: list[dict],
+    resume_text: str,
+) -> list[dict]:
+    """Build evidence-bound known and stable unknown JD requirements."""
+    statements = split_jd_statements(jd_text)
+    skills_by_statement = [
+        [skill for skill in skills if _statement_has_skill(statement, skill)]
+        for statement in statements
+    ]
+
+    requirements: list[dict[str, Any]] = []
+    for skill in skills:
+        statement = next(
+            (
+                candidate
+                for candidate in statements
+                if _statement_has_skill(candidate, skill)
+            ),
+            None,
+        )
+        if statement is None:
+            continue
+        evidence_match = classify_skill_evidence(skill, resume_text)
+        requirements.append({
+            "requirement_id": skill["id"],
+            "label": skill["label"],
+            "priority": classify_requirement_priority(statement, known=True),
+            "jd_evidence": statement,
+            "resume_status": evidence_match.status,
+            "resume_evidence": list(evidence_match.evidence),
+            "reason": evidence_match.reason,
+        })
+
+    if not requirements:
+        return [_unknown_requirement(statement) for statement in statements[:12]]
+
+    for statement, statement_skills in zip(statements, skills_by_statement):
+        if statement_skills or not _REQUIREMENT_LANGUAGE.search(statement):
+            continue
+        requirements.append(_unknown_requirement(statement))
+    return requirements
+
+
+def _missing_rewrite_fields(line: str) -> list[str]:
+    missing: list[str] = []
+    if not re.search(
+        r"\d[\d,.]*\s*(?:%|人|万|次|篇|个|项|份|位|倍|ms|s|秒|分钟|小时|"
+        r"users?|requests?|documents?|records?)(?![A-Za-z])",
+        line,
+        re.IGNORECASE,
+    ):
+        missing.append("metric")
+    if not re.search(
+        r"(?:19|20)\d{2}|\d+\s*(?:天|周|月|年|days?|weeks?|months?|years?)",
+        line,
+        re.IGNORECASE,
+    ):
+        missing.append("time_range")
+    if not (
+        re.search(r"(?:^|[，,。.;；\s])(?:我|本人|个人|独立|主导|负责)", line)
+        or re.search(r"\b(?:owned|led|personally)\b", line, re.IGNORECASE)
+    ):
+        missing.append("personal_contribution")
+    return missing
+
+
+def _build_public_rewrite_suggestions(
+    resume_text: str,
+    skills: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    suggestions: list[dict[str, Any]] = []
+    for line in _resume_bullet_candidates(resume_text):
+        requirement_ids = [
+            skill["id"]
+            for skill in skills
+            if classify_skill_evidence(skill, line).status == "evidenced"
+        ]
+        if not requirement_ids:
+            continue
+        pending_fields = _missing_rewrite_fields(line)
+        fact_status = (
+            "pending_confirmation"
+            if pending_fields
+            else "confirmed_source_only"
+        )
+        suggestions.append({
+            "suggestion_id": f"rw-{len(suggestions) + 1:03d}",
+            "source": line,
+            "suggested": line,
+            "requirement_ids": requirement_ids,
+            "fact_status": fact_status,
+            "pending_fields": pending_fields,
+            "default_export": fact_status == "confirmed_source_only",
+        })
+        if len(suggestions) >= 8:
+            break
+    return suggestions
+
+
+def analyze_public_beta(
+    jd_text: str,
+    resume_text: str,
+    analysis_id: str,
+    role: str | None = None,
+) -> dict:
+    """Return the versioned, evidence-only public-Beta analysis contract."""
+    if role in ROLES:
+        role_key = role
+        role_confidence = 1.0
+    else:
+        role_key, role_confidence = detect_role_with_confidence(jd_text)
+    spec = ROLES[role_key]
+    requirements = build_requirements(jd_text, spec["skills"], resume_text)
+    known_requirements = [
+        requirement
+        for requirement in requirements
+        if requirement["priority"] != "unknown"
+    ]
+    known_ids = {
+        requirement["requirement_id"] for requirement in known_requirements
+    }
+    target_skills = [
+        skill for skill in spec["skills"] if skill["id"] in known_ids
+    ]
+    known = len(known_requirements)
+    unknown = len(requirements) - known
+    evidenced = sum(
+        requirement["resume_status"] == "evidenced"
+        for requirement in requirements
+    )
+    uncertain = sum(
+        requirement["resume_status"] == "uncertain"
+        for requirement in requirements
+    )
+    missing = sum(
+        requirement["resume_status"] == "not_found"
+        for requirement in requirements
+    )
+    warnings = [] if known else ["KNOWN_REQUIREMENT_COVERAGE_LOW"]
+
+    return {
+        "ok": True,
+        "analysis_id": analysis_id,
+        "algorithm_version": ALGORITHM_VERSION,
+        "knowledge_base_version": KNOWLEDGE_BASE_VERSION,
+        "role": {
+            "id": role_key,
+            "label": spec["label"],
+            "confidence": role_confidence,
+        },
+        "coverage_summary": {
+            "known_requirement_count": known,
+            "unknown_requirement_count": unknown,
+            "evidenced_count": evidenced,
+            "uncertain_count": uncertain,
+            "missing_evidence_count": missing,
+            "keyword_coverage": round(evidenced / known * 100) if known else None,
+        },
+        "requirements": requirements,
+        "rewrite_suggestions": _build_public_rewrite_suggestions(
+            resume_text,
+            target_skills,
+        ),
+        "warnings": warnings,
     }
 
 
