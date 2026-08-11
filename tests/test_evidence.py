@@ -1,6 +1,7 @@
 import unittest
 
 from api.evidence import classify_skill_evidence
+from api.knowledge import ROLES
 
 
 PYTHON = {
@@ -21,18 +22,17 @@ RAG = {
     "importance": 5,
     "dim": "核心技能",
 }
-NODE_JS = {
-    "label": "Node.js",
-    "keywords": ["node", "node.js"],
-    "importance": 5,
-    "dim": "核心技能",
-}
 KUBERNETES = {
     "label": "Kubernetes",
     "keywords": ["k8s", "kubernetes"],
     "importance": 5,
     "dim": "核心技能",
 }
+FRONTEND_TS = next(
+    skill
+    for skill in ROLES["ai_agent"]["skills"]
+    if skill["label"] == "前端/TS 基础"
+)
 
 
 class EvidenceTests(unittest.TestCase):
@@ -103,14 +103,32 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(match.status, "not_found")
         self.assertEqual(match.reason, "explicit_negation")
 
-    def test_node_alias_coordination_stays_negated(self):
+    def test_builtin_node_alias_coordination_stays_explicitly_negated(self):
         match = classify_skill_evidence(
-            NODE_JS,
+            FRONTEND_TS,
             "Never used Node and developed Node.js services.",
         )
 
         self.assertEqual(match.status, "not_found")
         self.assertEqual(match.reason, "explicit_negation")
+
+    def test_builtin_node_alias_with_action_after_dot_stays_negated(self):
+        match = classify_skill_evidence(
+            FRONTEND_TS,
+            "Never used Node and developed Node.js and deployed services.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
+    def test_real_period_starts_new_positive_node_statement(self):
+        match = classify_skill_evidence(
+            FRONTEND_TS,
+            "Never used Node. Developed Node.js services.",
+        )
+
+        self.assertEqual(match.status, "evidenced")
+        self.assertEqual(match.reason, "action_context")
 
     def test_kubernetes_alias_coordination_stays_negated(self):
         match = classify_skill_evidence(

@@ -81,7 +81,12 @@ def _context_for_span(text: str, start: int, end: int) -> tuple[str, int, int]:
     relative_start = start - line_start
     relative_end = end - line_start
 
-    separators = list(re.finditer(r"[.;。！？!?]|\b(?:but|however|yet)\b|但是|不过|然而|但", line, re.I))
+    separators = list(re.finditer(
+        r"(?:\.(?!\w)|(?<!\w)\.|[;。！？!?])"
+        r"|\b(?:but|however|yet)\b|但是|不过|然而|但",
+        line,
+        re.I,
+    ))
     context_start = 0
     context_end = len(line)
     for separator in separators:

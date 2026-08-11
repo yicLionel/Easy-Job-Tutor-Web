@@ -75,7 +75,7 @@ class MatcherTests(unittest.TestCase):
             "explicit_negation",
         )
 
-    def test_node_alias_coordination_cannot_create_coverage_or_rewrite(self):
+    def test_builtin_node_alias_coordination_cannot_create_coverage_or_rewrite(self):
         result = analyze(
             "We need Node.js experience.",
             "Never used Node and developed Node.js services.",
@@ -85,6 +85,43 @@ class MatcherTests(unittest.TestCase):
         self.assertEqual(result["keyword_coverage"], 0)
         self.assertNotIn("前端/TS 基础", result["matched_skills"])
         self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+        self.assertEqual(result["fact_ledger"][0]["evidence_status"], "not_found")
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "explicit_negation",
+        )
+
+    def test_builtin_node_action_after_dot_cannot_create_coverage_or_rewrite(self):
+        result = analyze(
+            "We need Node.js experience.",
+            "Never used Node and developed Node.js and deployed services.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 0)
+        self.assertNotIn("前端/TS 基础", result["matched_skills"])
+        self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+        self.assertEqual(result["fact_ledger"][0]["evidence_status"], "not_found")
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "explicit_negation",
+        )
+
+    def test_real_period_allows_new_positive_node_statement(self):
+        result = analyze(
+            "We need Node.js experience.",
+            "Never used Node. Developed Node.js services.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 100)
+        self.assertIn("前端/TS 基础", result["matched_skills"])
+        self.assertEqual(len(result["resume_optimization"]["bullet_rewrites"]), 1)
+        self.assertEqual(result["fact_ledger"][0]["evidence_status"], "evidenced")
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "action_context",
+        )
 
     def test_kubernetes_alias_coordination_cannot_create_coverage_or_rewrite(self):
         result = analyze(
