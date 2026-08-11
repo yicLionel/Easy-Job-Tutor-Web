@@ -98,6 +98,23 @@ def _context_for_span(text: str, start: int, end: int) -> tuple[str, int, int]:
     )
 
 
+def _has_positive_coordinated_action(text: str) -> bool:
+    for coordinator in re.finditer(r"\band\b", text, re.IGNORECASE):
+        preceding_words = re.findall(
+            r"[A-Za-z0-9]+",
+            text[:coordinator.start()],
+        )
+        if len(preceding_words) < 2:
+            continue
+        following = text[coordinator.end():]
+        if any(
+            re.match(rf"\s*(?:{pattern})", following, re.IGNORECASE)
+            for pattern in ACTION_PATTERNS
+        ):
+            return True
+    return False
+
+
 def _is_negated(text: str, span: tuple[int, int, str]) -> bool:
     context, keyword_start, keyword_end = _context_for_span(
         text,
@@ -108,7 +125,10 @@ def _is_negated(text: str, span: tuple[int, int, str]) -> bool:
         for negation in re.finditer(pattern, context, re.IGNORECASE):
             if negation.start() <= keyword_start:
                 between = context[negation.end():keyword_start]
-                if not re.search(r"[,，;；]", between):
+                if (
+                    not re.search(r"[,，;；]", between)
+                    and not _has_positive_coordinated_action(between)
+                ):
                     return True
                 continue
 

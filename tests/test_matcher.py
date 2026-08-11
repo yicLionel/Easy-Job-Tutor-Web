@@ -45,6 +45,17 @@ class MatcherTests(unittest.TestCase):
         self.assertIn("Python", result["matched_skills"])
         self.assertEqual(len(result["resume_optimization"]["bullet_rewrites"]), 1)
 
+    def test_coordinated_python_action_keeps_coverage_and_rewrite(self):
+        result = analyze(
+            "We need Python experience.",
+            "Never used Java and developed Python services.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 100)
+        self.assertIn("Python", result["matched_skills"])
+        self.assertEqual(len(result["resume_optimization"]["bullet_rewrites"]), 1)
+
     def test_negated_requirement_cannot_have_complete_keyword_coverage(self):
         result = analyze(
             "We need Python experience.",

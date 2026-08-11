@@ -56,6 +56,26 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(java_match.status, "not_found")
         self.assertEqual(java_match.reason, "explicit_negation")
 
+    def test_coordinated_positive_action_resets_earlier_java_negation(self):
+        text = "Never used Java and developed Python services."
+
+        python_match = classify_skill_evidence(PYTHON, text)
+        java_match = classify_skill_evidence(JAVA, text)
+
+        self.assertEqual(python_match.status, "evidenced")
+        self.assertEqual(python_match.reason, "action_context")
+        self.assertEqual(java_match.status, "not_found")
+        self.assertEqual(java_match.reason, "explicit_negation")
+
+    def test_shared_negated_predicate_chain_stays_negated(self):
+        match = classify_skill_evidence(
+            PYTHON,
+            "I never designed or developed Python applications.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
     def test_positive_span_after_negated_contrast_is_evidenced(self):
         match = classify_skill_evidence(
             PYTHON,
