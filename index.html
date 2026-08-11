@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI 简历优化 · 面试辅导 · 学习路线</title>
+  <title>Easy Job Tutor · 公开 Beta</title>
   <link rel="stylesheet" href="/styles.css" />
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="/vendor/vue.global.prod.js"></script>
 </head>
 <body>
   <div id="app" :class="['app-shell', appShellClass]">
@@ -106,9 +106,6 @@
         </div>
         <div class="topbar-right">
           <div class="audience">{{ t("app_audience") }}</div>
-          <button class="lang-btn" @click="toggleLocale" :title="locale === 'zh' ? 'English' : '中文'">
-            {{ locale === 'zh' ? 'EN' : '中文' }}
-          </button>
         </div>
       </header>
 
@@ -126,7 +123,9 @@
       <!-- ════════════ 步骤 1：上传 ════════════ -->
       <section v-if="step === 1" class="card">
         <h2>{{ t("upload_title") }}</h2>
+        <span class="beta-badge">公开 Beta</span>
         <p class="hint">{{ t("upload_hint") }}</p>
+        <p class="capability-limit">本工具提供 JD 关键词覆盖与简历原文证据辅助，不预测录用结果，也不代表招聘方或 ATS 评分。</p>
 
         <div class="mode-pills">
           <label v-for="m in modeOptions" :key="m.value"
@@ -178,6 +177,11 @@
             </label>
           </div>
         </template>
+
+        <label class="consent-row" for="privacy-consent">
+          <input id="privacy-consent" type="checkbox" v-model="privacyConsent" />
+          <span>我已阅读并同意 <a href="/privacy.html" target="_blank" rel="noopener">隐私说明</a> 与 <a href="/terms.html" target="_blank" rel="noopener">使用条款</a></span>
+        </label>
 
         <div class="actions">
           <button class="primary" :disabled="loading || !canSubmit" @click="submit">

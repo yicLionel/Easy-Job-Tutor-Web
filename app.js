@@ -1,15 +1,15 @@
-/* AI 简历优化助手 — Vue 3 前端逻辑（无构建步骤，使用 CDN 全局 Vue）。
+/* AI 简历优化助手 — Vue 3 前端逻辑（无构建步骤，使用同源 vendored 全局 Vue）。
    集成 Skill 版本功能：Gate 系统、五维评审、事实台账、JD 拆解、简历诊断、多 JD 对比
    中英文 i18n 支持。 */
 const { createApp, reactive, ref, computed, watch, onMounted, onUnmounted } = Vue;
 
 // ── i18n 字典 ──────────────────────────────────────────
-const LOCALE_KEY = "easy_job_tutor_locale";
+const PRIVACY_CONSENT_VERSION = "2026-08-11";
 const LOCALES = {
   zh: {
     /* 品牌 / 通用 */
     app_title: "AI 简历优化助手",
-    app_subtitle: "匹配度分析 · 查漏补缺 · 学习路线 · 面试辅导",
+    app_subtitle: "JD 关键词覆盖 · 简历原文证据辅助",
     app_audience: "面向在校大学生 / 应届毕业生 · 首版覆盖 AI 产品 / AI Agent 开发 / AI 运营",
     workspace: "工作台",
     dashboard: "工作台",
@@ -75,7 +75,7 @@ const LOCALES = {
     upload_drag: "将文件拖拽到此处，或点击选择",
     upload_role_label: "目标岗位",
     uploading: "分析中…",
-    upload_submit: "开始分析",
+    upload_submit: "分析这份简历",
     error_server: (s) => `服务器返回 HTTP ${s}，请稍后重试。`,
     error_fail: "分析失败，请重试。",
     error_network: "网络请求失败，请检查网络连接后重试。",
@@ -165,7 +165,7 @@ const LOCALES = {
     learn_download: "下载优化方案（Markdown）",
     learn_restart: "重新开始",
     /* 页脚 */
-    footer: "v0.2 · i18n 中英文切换 · 集成 Gate 系统 · 五维评审 · 事实台账 · 多模式分析",
+    footer: "JD 关键词覆盖与简历原文证据辅助",
     /* 下载文件 */
     md_filename: (l) => `简历优化方案_${l}.md`,
     /* 标签 */
@@ -341,8 +341,7 @@ const LOCALES = {
 createApp({
   setup() {
     // ── i18n ──────────────────────────────────────────────────
-    const locale = ref(localStorage.getItem(LOCALE_KEY) || "zh");
-    watch(locale, (v) => localStorage.setItem(LOCALE_KEY, v));
+    const locale = ref("zh");
 
     const dict = computed(() => LOCALES[locale.value] || LOCALES.zh);
     const t = (key, ...args) => {
@@ -350,7 +349,6 @@ createApp({
       if (typeof val === "function") return val(...args);
       return val ?? key;
     };
-    const toggleLocale = () => { locale.value = locale.value === "zh" ? "en" : "zh"; };
 
     // ── 基础状态 ──────────────────────────────────────────────
     const step = ref(1);
@@ -359,6 +357,7 @@ createApp({
     const dragging = ref(false);
     const result = reactive({});
     const fileInput = ref(null);
+    const privacyConsent = ref(false);
     const isMobile = ref(typeof window !== "undefined" ? window.innerWidth <= 960 : false);
     const sidebarOpen = ref(!isMobile.value);
     const sidebarCollapsed = ref(false);
@@ -387,7 +386,6 @@ createApp({
       { value: "complete", label: t("mode_complete"), desc: t("mode_complete_desc") },
       { value: "jd_only", label: t("mode_jd"), desc: t("mode_jd_desc") },
       { value: "resume_only", label: t("mode_resume"), desc: t("mode_resume_desc") },
-      { value: "multi_jd", label: t("mode_multi"), desc: t("mode_multi_desc") },
     ]);
 
     const showJdInput = computed(() =>
@@ -465,8 +463,6 @@ createApp({
       { id: "home", label: t("nav_home"), desc: t("nav_home_desc"), icon: PAGE_ICONS.home, step: 1 },
       { id: "analysis", label: t("nav_analysis"), desc: t("nav_analysis_desc"), icon: PAGE_ICONS.analysis, step: 2 },
       { id: "gaps", label: t("nav_gaps"), desc: t("nav_gaps_desc"), icon: PAGE_ICONS.gaps, step: 3 },
-      { id: "learning", label: t("nav_learning"), desc: t("nav_learning_desc"), icon: PAGE_ICONS.learning, step: 4 },
-      { id: "interview", label: t("nav_interview"), desc: t("nav_interview_desc"), icon: PAGE_ICONS.interview, step: 4 },
     ]);
 
     const currentPage = computed(() => {
@@ -516,6 +512,7 @@ createApp({
     const jdTexts = ref(["", ""]);
 
     const canSubmit = computed(() => {
+      if (!privacyConsent.value) return false;
       if (analysisMode.value === "complete" || analysisMode.value === "jd_only") {
         return form.jd.trim().length > 10 && (analysisMode.value !== "complete" || form.file);
       }
@@ -570,6 +567,7 @@ createApp({
         fd.append("mode", analysisMode.value);
         fd.append("role", form.role);
         fd.append("locale", locale.value);
+        fd.append("privacy_consent_version", PRIVACY_CONSENT_VERSION);
         if (showJdInput.value) { fd.append("jd", form.jd); }
         else { fd.append("jd", ""); }
         if (showMultiJdInput.value) {
@@ -720,7 +718,7 @@ createApp({
 
     return {
       // i18n
-      locale, t, toggleLocale, dict,
+      locale, t, dict,
       // 状态
       step, loading, error, dragging, result, fileInput,
       isMobile, sidebarOpen, sidebarCollapsed, appShellClass,
@@ -728,7 +726,7 @@ createApp({
       analysisMode, modeOptions, showJdInput, showResumeInput, showMultiJdInput,
       currentSteps, availableSteps, currentModeLabel, resultSummary,
       // 表单
-      roleOptions, form, jdTexts, canSubmit,
+      roleOptions, form, jdTexts, privacyConsent, canSubmit,
       onFile, onDrop, addJdField, removeJdField, submit,
       // 分数环
       R, circ, ringColor, scoreWord,

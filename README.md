@@ -1,92 +1,67 @@
-# AI 简历优化助手 · 面试辅导 · 学习路线
+# Easy Job Tutor · 公开 Beta
 
-> **🌐 在线体验：https://easy-job-tutor-web.vercel.app/**
+> 在线体验：https://easy-job-tutor-web.vercel.app/
 
-> An AI-powered resume analyzer built for students and fresh graduates targeting AI-related roles.
-> Paste a job description, upload your resume, and get an explainable match analysis, gap list, learning path, and interview prep — for free, with zero API cost.
+Easy Job Tutor 面向在校大学生与应届毕业生，提供岗位 JD 关键词覆盖分析和简历原文证据辅助。当前 Beta 首版覆盖 AI 产品、AI Agent 开发与 AI 运营方向。
 
-面向**在校大学生 / 应届毕业生**的 AI 简历优化工具，覆盖三大热门岗位方向：**AI 产品经理 / AI Agent 开发 / AI 运营**（可自动识别岗位方向）。
+本工具不预测录用结果，也不代表招聘方或 ATS 评分。分析结果来自规则与关键词命中；用户必须核实每一项待确认事实，再将内容用于正式求职材料。
 
-产品的核心是**可解释**：每一步结论都基于规则与关键词命中，能从简历原文追溯到证据，无任何大模型 API 调用——零成本、离线可用、隐私友好。
-
----
-
-## ✨ 功能特性
-
-### 四种分析模式（自动路由，也可手动指定）
+## 当前公开范围
 
 | 模式 | 输入 | 输出 |
 |------|------|------|
-| **全链路分析** | 岗位 JD + 简历 | 匹配度总评、四维分、五维评审、事实台账、差距清单、学习路线、面试题 |
-| **岗位拆解** | 仅岗位 JD | 必需技能 / 加分技能 / 工具技术 / 领域知识 / 软技能 / 隐性要求 |
-| **简历诊断** | 仅简历 | 章节完整度、亮点、问题、针对性追问 |
-| **多岗位对比** | 多个 JD + 简历 | 横向评分对比、共同优势、岗位间差异点 |
+| 完整分析 | 岗位 JD + 简历 | 关键词覆盖、能力差距、简历原文证据和事实待确认提示 |
+| 岗位拆解 | 仅岗位 JD | 职责、要求、工具、领域知识和软技能的关键词整理 |
+| 简历诊断 | 仅简历 | 章节检测、原文亮点、问题和待补充信息 |
 
-### 匹配分析（全链路模式）
+当前输出是求职材料整理辅助，不构成招聘建议或招聘决定，也不保证任何求职结果。
 
-- **总分 + 四维分**：核心技能 / 项目经验 / 教育背景 / 综合素养，SVG 分数环直观展示（0–100，随分数变色）
-- **五维评审**：岗位匹配度、ATS 系统友好度、HR 扫描体验、面试准备度、简历可信度，每项附证据与改进建议
-- **事实台账**：逐项列出命中的技能，标注重要度（P1–P5）与**简历原文证据**，匹配结果可追溯
+## 事实保护
 
-### JD 定制简历优化
+- 关键词命中结果尽量关联到简历原文证据。
+- 建议草稿中的新增数字、职责和成果必须标记为待确认。
+- 用户需要确认所有待确认内容，确保最终材料准确且不具误导性。
 
-- 从当前 JD 中筛选实际相关技能，再计算匹配度与能力差距
-- 对简历中可识别的经历行生成**基于原文的 Bullet 改写草稿**
-- 标出 JD 关键词、待补充关键词和需要用户确认的量化成果
-- 展示原文 / 建议版本对比，并支持导出 Markdown 优化草稿
-- 所有新增数字、职责和成果均标记为待确认，不自动编造候选人经历
+## 隐私与处理方式
 
-### 查漏补缺 → 学习路线 → 面试辅导
+- PDF、DOCX 或 TXT 文件会发送到部署在 Vercel 的服务器函数，在该次请求中解析。
+- 当前 Beta 不调用外部大型语言模型 API。
+- 应用代码不会有意持久化保存原始文件或提取文本。
+- 运营基础设施可能处理请求元数据；应用日志和分析排除文件名、JD、简历、原文证据、姓名、电子邮箱地址和电话号码。
+- 请勿上传你无权处理的信息。完整说明见 [`privacy.html`](privacy.html)，使用规则见 [`terms.html`](terms.html)。
 
-- 按重要度排序的能力差距清单，每项附补齐建议与精选学习资源
-- 分阶段学习路线（基础夯实 → 核心突破 → 高阶实战 → 作品集）
-- 通用面试题 + 针对差距的定制追问
-- 支持**一键下载**完整 Markdown 方案
-
-### 其他
-
-- 🌐 **中英文双语**：界面与分析结果一键切换（zh / en）
-- 📱 响应式布局：桌面侧边栏 + 移动端抽屉导航
-- 🔒 **隐私友好**：简历仅在应用内解析处理，无第三方上传、无外部 API 调用
-
----
-
-## 🛠 技术栈
+## 技术栈
 
 | 层 | 技术 |
 |----|------|
-| 后端 | **FastAPI**（简历解析、匹配度计算、路线生成） |
-| 前端 | **Vue 3**（CDN 引入，无构建步骤） |
-| 简历解析 | pdfplumber / pypdf / python-docx（PDF / Word / TXT） |
-| 部署 | **Vercel** Serverless + 静态托管 |
+| 后端 | FastAPI（请求路由、文件解析与规则分析） |
+| 前端 | Vue 3.5.18（同源静态运行时，无构建步骤） |
+| 文件解析 | pdfplumber / pypdf / python-docx（PDF / DOCX / TXT） |
+| 部署 | Vercel Serverless + 静态托管 |
 
----
+## 目录结构
 
-## 📁 目录结构
-
-```
+```text
 .
-├── index.html            # 前端入口（Vercel 静态托管）
-├── app.js                # Vue 3 前端逻辑
-├── styles.css            # 样式
-├── requirements.txt      # Python 依赖（Vercel 从项目根目录读取）
-├── .python-version       # Vercel Python 版本
-├── vercel.json           # Vercel 配置（零配置路由）
-├── tests/                # 单元测试（入口点 / 简历解析）
+├── index.html
+├── app.js
+├── styles.css
+├── privacy.html
+├── terms.html
+├── vendor/
+│   ├── vue.global.prod.js
+│   └── VUE-LICENSE.txt
+├── e2e/
+├── tests/
 └── api/
-    ├── index.py          # Vercel ASGI 入口
-    ├── health.py         # Vercel 入口 → /api/health
-    ├── analyze.py        # Vercel 入口 → /api/analyze
-    ├── main.py           # FastAPI 应用工厂（模式路由 Gate 系统）
-    ├── parser.py         # 简历文本抽取（PDF / Word / TXT）
-    ├── matcher.py        # 匹配度评分、五维评审、事实台账、多 JD 对比
-    ├── learning.py       # 学习路线 & 面试辅导生成
-    └── knowledge.py      # 三岗位技能知识库（核心配置，中英双语关键词）
+    ├── main.py
+    ├── parser.py
+    ├── matcher.py
+    ├── learning.py
+    └── knowledge.py
 ```
 
----
-
-## ✅ 测试
+## 本地开发与测试
 
 使用 Python 3.12 创建虚拟环境并安装开发依赖：
 
@@ -94,42 +69,20 @@
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -r dev-requirements.txt
+npm ci
+npx playwright install chromium
 ```
 
-运行 Python 单元测试和浏览器端到端测试：
+运行静态检查、Python 测试和浏览器端到端测试：
 
 ```bash
-python -m unittest discover -s tests -v
-npm ci
 npm run check
-npx playwright install chromium
+python -m unittest discover -s tests -v
 npm run test:e2e
 ```
 
-本地端到端测试会自动启动 FastAPI 服务，并覆盖桌面 Chromium 与 390px 宽移动视口。
+端到端测试会启动本地 FastAPI 服务，并覆盖桌面 Chromium 与 390px 宽移动视口。
 
-旧的 pytest 命令仍可用于本地快速检查：
+## 联系
 
-```bash
-pytest tests/
-```
-
-覆盖：API 入口点可用性、简历文本解析（PDF / Word / TXT）、JD 定向匹配和事实保护型优化草稿。
-
----
-
-## 🗺 后续规划
-
-- [ ] 简历扫描件 OCR 识别
-- [ ] 账号体系与历史记录
-- [ ] 更多岗位模板（产品、算法、研发、运营等）
-- [ ] 语义级匹配（可选接入大模型，替换 `api/matcher.py` 内部实现即可，前端无需改动）
-- [ ] 模拟面试对话
-
----
-
-## 📄 说明
-
-- 当前匹配度为**基于关键词命中的规则分析**（可解释、零成本、离线可用），非语义评估。
-- 若需语义级评估，可接入 Claude / OpenAI 等大模型，只需替换 `api/matcher.py` 内部实现。
-- 支持中英文 JD 与简历（知识库内置双语关键词）。
+问题与隐私请求请提交到项目仓库的 [Issue 跟踪器](https://github.com/yicLionel/Easy-Job-Tutor-Web/issues)。
