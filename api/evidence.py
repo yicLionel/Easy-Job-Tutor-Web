@@ -1,9 +1,5 @@
-from collections.abc import Collection
 from dataclasses import dataclass
 import re
-import unicodedata
-
-from api.knowledge import TECHNOLOGY_ENTITY_ALIASES
 
 
 @dataclass(frozen=True)
@@ -62,13 +58,6 @@ def _keyword_spans(skill: dict, text: str) -> list[tuple[int, int, str]]:
     return sorted(spans, key=lambda item: (item[0], item[1], item[2].lower()))
 
 
-def _canonical_entity_alias(value: str) -> str:
-    """Normalize decorative punctuation without erasing technology syntax."""
-    undecorated = str(value).replace("®", "").replace("™", "").replace("©", "")
-    normalized = unicodedata.normalize("NFKC", undecorated).strip().casefold()
-    return normalized.strip("'\"“”‘’`´()[]{}<>").strip()
-
-
 def _line_bounds(text: str, start: int, end: int) -> tuple[int, int]:
     line_start = text.rfind("\n", 0, start) + 1
     line_end = text.find("\n", end)
@@ -109,59 +98,9 @@ def _context_for_span(text: str, start: int, end: int) -> tuple[str, int, int]:
     )
 
 
-def _has_tool_use_coordination_reset(
-    text: str,
-    current_skill_aliases: Collection[str],
-    technology_aliases: Collection[str],
-) -> bool:
-    """Reset after a completed ``used <tool>`` denial and before a new action.
-
-    Token shape or capitalization cannot prove that the first conjunct names a
-    different tool.  A canonical denied object must instead belong to the typed
-    technology vocabulary and differ from every alias of the current skill.
-    Coordinated resume actions such as ``designed ... and developed ...`` keep
-    sharing the preceding negation.
-    """
-    current_aliases = {
-        _canonical_entity_alias(alias)
-        for alias in current_skill_aliases
-        if alias
-    }
-    known_technologies = {
-        _canonical_entity_alias(alias)
-        for alias in technology_aliases
-        if alias
-    }
-    for coordinator in re.finditer(r"\band\b", text, re.IGNORECASE):
-        preceding = text[:coordinator.start()].strip()
-        tool_use = re.fullmatch(
-            r"used\s+(?P<object>[^\s,，;；]+)",
-            preceding,
-            re.IGNORECASE,
-        )
-        if not tool_use:
-            continue
-        denied_object = _canonical_entity_alias(tool_use.group("object"))
-        if (
-            not denied_object
-            or denied_object in current_aliases
-            or denied_object not in known_technologies
-        ):
-            continue
-        following = text[coordinator.end():]
-        if any(
-            re.match(rf"\s*(?:{pattern})", following, re.IGNORECASE)
-            for pattern in ACTION_PATTERNS
-        ):
-            return True
-    return False
-
-
 def _is_negated(
     text: str,
     span: tuple[int, int, str],
-    current_skill_aliases: Collection[str],
-    technology_aliases: Collection[str],
 ) -> bool:
     context, keyword_start, keyword_end = _context_for_span(
         text,
@@ -172,14 +111,7 @@ def _is_negated(
         for negation in re.finditer(pattern, context, re.IGNORECASE):
             if negation.start() <= keyword_start:
                 between = context[negation.end():keyword_start]
-                if (
-                    not re.search(r"[,，;；]", between)
-                    and not _has_tool_use_coordination_reset(
-                        between,
-                        current_skill_aliases,
-                        technology_aliases,
-                    )
-                ):
+                if not re.search(r"[,，;；]", between):
                     return True
                 continue
 
@@ -208,7 +140,6 @@ def _unique(values: list[str]) -> tuple[str, ...]:
 def classify_skill_evidence(
     skill: dict,
     resume_text: str,
-    technology_aliases: Collection[str] = TECHNOLOGY_ENTITY_ALIASES,
 ) -> EvidenceMatch:
     text = resume_text or ""
     spans = _keyword_spans(skill, text)
@@ -220,11 +151,10 @@ def classify_skill_evidence(
             reason="no_keyword",
         )
 
-    skill_aliases = [skill.get("label", ""), *skill.get("keywords", [])]
     non_negated = [
         span
         for span in spans
-        if not _is_negated(text, span, skill_aliases, technology_aliases)
+        if not _is_negated(text, span)
     ]
     if not non_negated:
         return EvidenceMatch(

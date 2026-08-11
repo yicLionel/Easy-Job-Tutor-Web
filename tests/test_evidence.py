@@ -15,6 +15,24 @@ JAVA = {
     "importance": 5,
     "dim": "核心技能",
 }
+RAG = {
+    "label": "RAG 检索增强",
+    "keywords": ["rag"],
+    "importance": 5,
+    "dim": "核心技能",
+}
+NODE_JS = {
+    "label": "Node.js",
+    "keywords": ["node", "node.js"],
+    "importance": 5,
+    "dim": "核心技能",
+}
+KUBERNETES = {
+    "label": "Kubernetes",
+    "keywords": ["k8s", "kubernetes"],
+    "importance": 5,
+    "dim": "核心技能",
+}
 
 
 class EvidenceTests(unittest.TestCase):
@@ -56,25 +74,52 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(java_match.status, "not_found")
         self.assertEqual(java_match.reason, "explicit_negation")
 
-    def test_coordinated_positive_action_resets_earlier_java_negation(self):
+    def test_unpunctuated_java_coordination_keeps_python_negated(self):
         text = "Never used Java and developed Python services."
 
         python_match = classify_skill_evidence(PYTHON, text)
         java_match = classify_skill_evidence(JAVA, text)
 
-        self.assertEqual(python_match.status, "evidenced")
-        self.assertEqual(python_match.reason, "action_context")
+        self.assertEqual(python_match.status, "not_found")
+        self.assertEqual(python_match.reason, "explicit_negation")
         self.assertEqual(java_match.status, "not_found")
         self.assertEqual(java_match.reason, "explicit_negation")
 
-    def test_tool_use_transition_does_not_depend_on_capitalization(self):
+    def test_lowercase_java_coordination_keeps_python_negated(self):
         match = classify_skill_evidence(
             PYTHON,
             "Never used java and developed Python services.",
         )
 
-        self.assertEqual(match.status, "evidenced")
-        self.assertEqual(match.reason, "action_context")
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
+    def test_poetry_coordination_keeps_rag_negated(self):
+        match = classify_skill_evidence(
+            RAG,
+            "Never used poetry and developed RAG applications.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
+    def test_node_alias_coordination_stays_negated(self):
+        match = classify_skill_evidence(
+            NODE_JS,
+            "Never used Node and developed Node.js services.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
+
+    def test_kubernetes_alias_coordination_stays_negated(self):
+        match = classify_skill_evidence(
+            KUBERNETES,
+            "Never used k8s and developed Kubernetes services.",
+        )
+
+        self.assertEqual(match.status, "not_found")
+        self.assertEqual(match.reason, "explicit_negation")
 
     def test_same_skill_tool_use_chain_stays_negated(self):
         match = classify_skill_evidence(

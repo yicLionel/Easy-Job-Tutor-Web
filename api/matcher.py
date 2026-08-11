@@ -15,8 +15,6 @@ from api.knowledge import (
     ROLES,
     auto_detect_role,
     DIMENSIONS,
-    GENERIC_RESOURCE,
-    TECHNOLOGY_ENTITY_ALIASES,
 )
 from api.knowledge import DIMENSIONS_EN, LABEL_EN, LEARN_EN, ROLE_LABEL_EN, ROLE_DESC_EN, INTERVIEW_BASE_EN
 
@@ -25,15 +23,6 @@ from api.knowledge import DIMENSIONS_EN, LABEL_EN, LEARN_EN, ROLE_LABEL_EN, ROLE
 def _hit(skill, text_lower: str) -> bool:
     """检查技能关键词是否在文本中命中。"""
     return any(k.lower() in text_lower for k in skill["keywords"])
-
-
-def _classify_resume_evidence(skill: dict, resume_text: str) -> EvidenceMatch:
-    """Classify resume evidence with the explicit technology entity model."""
-    return classify_skill_evidence(
-        skill,
-        resume_text,
-        technology_aliases=TECHNOLOGY_ENTITY_ALIASES,
-    )
 
 
 def _detect_sections(text: str) -> list:
@@ -72,7 +61,7 @@ def build_fact_ledger(
     for sk in skills if skills is not None else spec["skills"]:
         match = (evidence_matches or {}).get(sk["label"])
         if match is None:
-            match = _classify_resume_evidence(sk, resume_text)
+            match = classify_skill_evidence(sk, resume_text)
         status = {
             "evidenced": "confirmed",
             "uncertain": "pending_confirmation",
@@ -191,7 +180,7 @@ def _build_bullet_rewrites(
     for line in _resume_bullet_candidates(resume_text):
         related_matches = []
         for skill in target_skills:
-            match = _classify_resume_evidence(skill, line)
+            match = classify_skill_evidence(skill, line)
             if match.status == "evidenced":
                 related_matches.append((skill, match))
         if not related_matches:
@@ -215,7 +204,7 @@ def build_resume_optimization(
     """Build fact-preserving resume optimization drafts for complete analysis."""
     jd_keywords = _jd_keywords(target_skills, jd_text)
     matches = evidence_matches or {
-        skill["label"]: _classify_resume_evidence(skill, resume_text)
+        skill["label"]: classify_skill_evidence(skill, resume_text)
         for skill in target_skills
     }
     evidenced_keywords = {
@@ -574,7 +563,7 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
     total_w = 0
     matched_w = 0
     evidence_matches = {
-        sk["label"]: _classify_resume_evidence(sk, resume_text)
+        sk["label"]: classify_skill_evidence(sk, resume_text)
         for sk in target_skills
     }
 

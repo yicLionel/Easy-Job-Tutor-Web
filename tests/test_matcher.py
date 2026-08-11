@@ -45,16 +45,61 @@ class MatcherTests(unittest.TestCase):
         self.assertIn("Python", result["matched_skills"])
         self.assertEqual(len(result["resume_optimization"]["bullet_rewrites"]), 1)
 
-    def test_coordinated_python_action_keeps_coverage_and_rewrite(self):
+    def test_unpunctuated_java_coordination_cannot_create_python_coverage_or_rewrite(self):
         result = analyze(
             "We need Python experience.",
             "Never used Java and developed Python services.",
             role="ai_agent",
         )
 
-        self.assertEqual(result["keyword_coverage"], 100)
-        self.assertIn("Python", result["matched_skills"])
-        self.assertEqual(len(result["resume_optimization"]["bullet_rewrites"]), 1)
+        self.assertEqual(result["keyword_coverage"], 0)
+        self.assertNotIn("Python", result["matched_skills"])
+        self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "explicit_negation",
+        )
+
+    def test_poetry_coordination_cannot_create_rag_coverage_or_rewrite(self):
+        result = analyze(
+            "We need RAG experience.",
+            "Never used poetry and developed RAG applications.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 0)
+        self.assertNotIn("RAG 检索增强", result["matched_skills"])
+        self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "explicit_negation",
+        )
+
+    def test_node_alias_coordination_cannot_create_coverage_or_rewrite(self):
+        result = analyze(
+            "We need Node.js experience.",
+            "Never used Node and developed Node.js services.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 0)
+        self.assertNotIn("前端/TS 基础", result["matched_skills"])
+        self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+
+    def test_kubernetes_alias_coordination_cannot_create_coverage_or_rewrite(self):
+        result = analyze(
+            "We need Kubernetes experience.",
+            "Never used k8s and developed Kubernetes services.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["keyword_coverage"], 0)
+        self.assertNotIn("部署/推理优化", result["matched_skills"])
+        self.assertEqual(result["resume_optimization"]["bullet_rewrites"], [])
+        self.assertEqual(
+            result["fact_ledger"][0]["evidence_reason"],
+            "explicit_negation",
+        )
 
     def test_decorated_current_skill_cannot_create_coverage_or_rewrite(self):
         resumes = (
