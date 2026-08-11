@@ -773,6 +773,67 @@ git add api/evidence.py api/matcher.py tests/test_evidence.py tests/test_matcher
 git commit -m "fix: classify resume evidence with context"
 ```
 
+#### Approved Task 5 Safety Contraction
+
+**Decision:** The approved design at `docs/superpowers/specs/2026-08-11-conservative-negation-scope-design.md` overrides the experimental coordinated-negation reset introduced during Task 5 review rounds. Public Beta favors false negatives over false-positive evidence and rewrites.
+
+**Files:**
+- Modify: `api/evidence.py`
+- Modify: `api/knowledge.py`
+- Modify: `api/matcher.py`
+- Modify: `tests/test_evidence.py`
+- Modify: `tests/test_matcher.py`
+
+**Interface:** Preserve `classify_skill_evidence(skill: dict, resume_text: str) -> EvidenceMatch`; remove the optional technology vocabulary parameter and every caller adapter used only to pass it.
+
+- [ ] **Step A: Write classifier REDs**
+
+Add direct classifier assertions that all of the following return `not_found / explicit_negation` for the current skill:
+
+```text
+Never used Java and developed Python services.
+Never used poetry and developed RAG applications.
+Never used Node and developed Node.js services.
+Never used k8s and developed Kubernetes services.
+```
+
+- [ ] **Step B: Write consumer REDs**
+
+Add matcher-level assertions for the built-in Python/RAG paths proving the affected requirement has `keyword_coverage == 0`, is absent from matched skills, and produces no bullet rewrite. Use real analyzer behavior rather than mocks.
+
+- [ ] **Step C: Run RED**
+
+Run:
+
+```bash
+.venv/bin/python -m unittest tests.test_evidence tests.test_matcher -v
+```
+
+Expected: FAIL because the coordinated tool-use reset still marks the target skill as evidenced.
+
+- [ ] **Step D: Delete the unsafe reset**
+
+Delete `_canonical_entity_alias`, `_has_tool_use_coordination_reset`, `TECHNOLOGY_ENTITY_ALIASES`, the classifier's optional vocabulary parameter, and the matcher wrapper that passes the vocabulary. `_is_negated` must treat an unpunctuated preceding negation as governing the keyword regardless of `and` or intervening technology tokens. Do not replace the deleted logic with another heuristic.
+
+- [ ] **Step E: Run GREEN and full verification**
+
+Run:
+
+```bash
+.venv/bin/python -m unittest tests.test_evidence tests.test_matcher -v
+.venv/bin/python -m unittest discover -s tests -v
+git diff --check
+```
+
+Expected: all PASS and clean diff check.
+
+- [ ] **Step F: Commit**
+
+```bash
+git add api/evidence.py api/knowledge.py api/matcher.py tests/test_evidence.py tests/test_matcher.py
+git commit -m "fix: keep coordinated negation conservative"
+```
+
 ---
 
 ### Task 6: Versioned Analysis Contract and Fact-Safe Rewrite Results
