@@ -134,6 +134,18 @@ const LOCALES = {
     status_confirmed: "已确认",
     status_pending: "待确认",
     status_infer: "推断",
+    resume_opt_title: "针对 JD 优化简历",
+    resume_opt_hint: "以下内容只基于简历原文。建议版本中的【待确认】内容需要你补充真实事实后再用于正式简历。",
+    resume_opt_target: "JD 关键词",
+    resume_opt_missing: "待补充关键词",
+    resume_opt_bullets: "Bullet 改写草稿",
+    resume_opt_source: "简历原文",
+    resume_opt_suggested: "建议版本（待确认）",
+    resume_opt_keywords: "关联关键词",
+    resume_opt_metric: "量化补充",
+    resume_opt_empty: "暂未识别到可直接改写的简历 bullet，请补充项目或经历描述。",
+    resume_opt_export: "导出优化简历草稿",
+    resume_opt_policy: "事实状态：草稿仅重排已有内容，不会自动补充数字、职责或成果。",
     gap_deduction: (s) => `扣分：${s}`,
     match_reupload: "重新上传",
     match_view_gaps: (n) => `查看差距（${n} 项）`,
@@ -287,6 +299,18 @@ const LOCALES = {
     status_confirmed: "Confirmed",
     status_pending: "Pending",
     status_infer: "Inferred",
+    resume_opt_title: "JD-Tailored Resume Draft",
+    resume_opt_hint: "This section only uses evidence from your resume. Confirm every 【pending】 item before using it in a final resume.",
+    resume_opt_target: "JD Keywords",
+    resume_opt_missing: "Keywords to Add",
+    resume_opt_bullets: "Bullet Rewrite Drafts",
+    resume_opt_source: "Resume Source",
+    resume_opt_suggested: "Suggested Version (Pending Confirmation)",
+    resume_opt_keywords: "Related Keywords",
+    resume_opt_metric: "Quantification",
+    resume_opt_empty: "No directly rewritable resume bullets were identified. Add more project or experience detail.",
+    resume_opt_export: "Export Resume Draft",
+    resume_opt_policy: "Fact status: drafts only reorder existing content and never invent numbers, responsibilities, or outcomes.",
     gap_deduction: (s) => `Deduction: ${s}`,
     match_reupload: "Re-upload",
     match_view_gaps: (n) => `View Gaps (${n})`,
@@ -607,6 +631,37 @@ createApp({
     };
 
     // ── 下载 ──────────────────────────────────────────────────
+    const downloadOptimizedResume = () => {
+      const opt = result.resume_optimization;
+      if (!opt) return;
+      const isEn = locale.value === "en";
+      let md = isEn
+        ? `# JD-Tailored Resume Draft · ${result.role_label}\n\n> Draft only. Confirm every pending item before use.\n\n`
+        : `# JD 定制简历优化草稿 · ${result.role_label}\n\n> 仅为优化草稿，使用前请确认所有待补充事实。\n\n`;
+      md += isEn ? "## Target Keywords\n" : "## JD 关键词\n";
+      md += `${(opt.target_keywords || []).join(", ") || (isEn ? "None recognized" : "暂未识别")}\n\n`;
+      md += isEn ? "## Keywords to Add\n" : "## 待补充关键词\n";
+      md += `${(opt.missing_keywords || []).join(", ") || (isEn ? "None" : "无明显缺口")}\n\n`;
+      md += isEn ? "## Bullet Rewrite Drafts\n" : "## Bullet 改写草稿\n";
+      (opt.bullet_rewrites || []).forEach((item, index) => {
+        md += `### ${index + 1}. ${item.suggested_bullet}\n`;
+        md += `- ${isEn ? "Source" : "原文"}：${item.source}\n`;
+        md += `- ${isEn ? "Keywords" : "关联关键词"}：${(item.matched_keywords || item.matched_skills || []).join(", ")}\n`;
+        md += `- ${isEn ? "Quantification" : "量化补充"}：${item.quantification_prompt}\n\n`;
+      });
+      md += isEn ? "## Quantification Prompts\n" : "## 量化补充问题\n";
+      (opt.quantification_prompts || []).forEach((item) => {
+        md += `- ${item.question}\n`;
+      });
+      md += `\n> ${opt.fact_policy || ""}\n`;
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      const anchor = document.createElement("a");
+      anchor.href = URL.createObjectURL(blob);
+      anchor.download = isEn ? "jd_tailored_resume_draft.md" : "JD定制简历优化草稿.md";
+      anchor.click();
+      URL.revokeObjectURL(anchor.href);
+    };
+
     const downloadPlan = () => {
       const r = result;
       const L = locale.value === "en" ? "en" : "zh";
@@ -682,7 +737,7 @@ createApp({
       // 台账
       statusLabel,
       // 动作
-      reset, downloadPlan, toggleSidebar, closeSidebar, jumpToStep,
+      reset, downloadPlan, downloadOptimizedResume, toggleSidebar, closeSidebar, jumpToStep,
       // 页面导航
       navItems, currentPage, isNavEnabled, navigateTo,
       // 模式切换

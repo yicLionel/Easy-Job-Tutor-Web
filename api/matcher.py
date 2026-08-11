@@ -8,6 +8,7 @@ Skill 版本功能集成：
 - JD 拆解分析 / 简历基线诊断 / 多 JD 对比
 """
 import re
+from typing import Any
 from api.knowledge import ROLES, auto_detect_role, DIMENSIONS, GENERIC_RESOURCE
 from api.knowledge import DIMENSIONS_EN, LABEL_EN, LEARN_EN, ROLE_LABEL_EN, ROLE_DESC_EN, INTERVIEW_BASE_EN
 
@@ -48,7 +49,12 @@ def _detect_sections(text: str) -> list:
 
 # ── 事实台账 ──────────────────────────────────────────────
 
-def build_fact_ledger(spec: dict, resume_text: str, matched_labels: set) -> list:
+def build_fact_ledger(
+    spec: dict,
+    resume_text: str,
+    matched_labels: set,
+    skills: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """为每个技能生成事实台账条目。
 
     状态规则：
@@ -58,7 +64,7 @@ def build_fact_ledger(spec: dict, resume_text: str, matched_labels: set) -> list
     """
     rl = (resume_text or "").lower()
     ledger = []
-    for sk in spec["skills"]:
+    for sk in skills if skills is not None else spec["skills"]:
         hit_strength = _hit_score(sk, rl)
         is_hit = sk["label"] in matched_labels
 
@@ -88,6 +94,135 @@ def build_fact_ledger(spec: dict, resume_text: str, matched_labels: set) -> list
             "can_enter_final": status == "confirmed",
         })
     return ledger
+
+
+def _skills_for_jd(
+    spec: dict[str, Any],
+    jd_text: str,
+) -> list[dict[str, Any]]:
+    """Return only knowledge-base skills explicitly present in this JD."""
+    jd_lower = (jd_text or "").lower()
+    matched = [sk for sk in spec.get("skills", []) if _hit(sk, jd_lower)]
+    return matched or list(spec.get("skills", []))
+
+
+def _jd_keywords(
+    skills: list[dict[str, Any]],
+    jd_text: str,
+) -> list[str]:
+    """Collect the exact knowledge-base keyword forms found in the JD."""
+    jd_lower = (jd_text or "").lower()
+    found: list[str] = []
+    for skill in skills:
+        for keyword in skill.get("keywords", []):
+            if keyword.lower() in jd_lower and keyword not in found:
+                found.append(keyword)
+    return found
+
+
+def _resume_bullet_candidates(resume_text: str) -> list[str]:
+    """Extract plausible resume bullets without inventing or merging facts."""
+    candidates: list[str] = []
+    for raw_line in (resume_text or "").splitlines():
+        line = re.sub(r"^[\s•●▪▸\-*]+", "", raw_line).strip()
+        if not 16 <= len(line) <= 240:
+            continue
+        if re.fullmatch(r"[\u4e00-\u9fffA-Za-z /&·-]{1,24}", line):
+            continue
+        if re.search(r"(?:电话|手机|邮箱|微信|email|@|https?://)", line, re.I):
+            continue
+        if line not in candidates:
+            candidates.append(line)
+    return candidates
+
+
+def _quantification_prompt(line: str) -> str:
+    """Ask for missing metrics instead of fabricating an outcome."""
+    if re.search(r"\d+\s*(?:%|人|万|次|篇|个|天|月|年)|\b\d+(?:\.\d+)?\b", line):
+        return "已有数字可保留；请补充基准、时间范围和你的个人贡献，确保结果可被面试追问。"
+    return "请补充真实数据：负责规模/频次、耗时或效率变化、转化/留存变化、时间范围，以及你的个人贡献。"
+
+
+def _build_bullet_rewrite(
+    line: str,
+    jd_keywords: list[str],
+    related_skills: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Create one draft while preserving the source bullet as evidence."""
+    line_lower = line.lower()
+    related_labels = [skill["label"] for skill in related_skills]
+    related_keywords = [
+        keyword for keyword in jd_keywords if keyword.lower() in line_lower
+    ]
+    metric_prompt = _quantification_prompt(line)
+    suggested = (
+        f"{line.rstrip('。')}；"
+        f"可保留并前置关键词：{'、'.join(related_keywords or related_labels)}；"
+        f"【待确认】{metric_prompt}"
+    )
+    return {
+        "source": line,
+        "suggested_bullet": suggested,
+        "matched_skills": related_labels,
+        "matched_keywords": related_keywords,
+        "quantification_prompt": metric_prompt,
+        "fact_status": "pending_confirmation",
+        "evidence": line,
+    }
+
+
+def _build_bullet_rewrites(
+    resume_text: str,
+    target_skills: list[dict[str, Any]],
+    jd_keywords: list[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Create up to eight evidence-backed bullet drafts and metric prompts."""
+    rewrites: list[dict[str, Any]] = []
+    prompts: list[dict[str, str]] = []
+    for line in _resume_bullet_candidates(resume_text):
+        related_skills = [skill for skill in target_skills if _hit(skill, line.lower())]
+        if not related_skills:
+            continue
+        rewrite = _build_bullet_rewrite(line, jd_keywords, related_skills)
+        rewrites.append(rewrite)
+        if not re.search(r"\d+\s*(?:%|人|万|次|篇|个|天|月|年)|\b\d+(?:\.\d+)?\b", line):
+            prompts.append({"source": line, "question": rewrite["quantification_prompt"]})
+        if len(rewrites) >= 8:
+            break
+    return rewrites, prompts[:6]
+
+
+def build_resume_optimization(
+    jd_text: str,
+    resume_text: str,
+    target_skills: list[dict[str, Any]],
+    matched_labels: set[str],
+) -> dict[str, Any]:
+    """Build fact-preserving resume optimization drafts for complete analysis."""
+    jd_keywords = _jd_keywords(target_skills, jd_text)
+    resume_lower = (resume_text or "").lower()
+    missing_keywords = [
+        keyword for keyword in jd_keywords
+        if keyword.lower() not in resume_lower
+    ]
+    missing_skills = [
+        skill["label"]
+        for skill in target_skills
+        if skill["label"] not in matched_labels
+    ]
+    rewrites, prompts = _build_bullet_rewrites(
+        resume_text, target_skills, jd_keywords
+    )
+
+    return {
+        "target_keywords": jd_keywords,
+        "missing_keywords": missing_keywords,
+        "missing_skills": missing_skills,
+        "bullet_rewrites": rewrites,
+        "quantification_prompts": prompts[:6],
+        "source_line_count": len(_resume_bullet_candidates(resume_text)),
+        "fact_policy": "改写草稿只使用简历原文；带【待确认】内容需由用户补充真实事实后才能进入最终简历。",
+    }
 
 
 # ── 五维评审 ──────────────────────────────────────────────
@@ -405,6 +540,7 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
     # 1) 确定岗位
     role_key = role if role in ROLES else auto_detect_role(jd_text)
     spec = ROLES[role_key]
+    target_skills = _skills_for_jd(spec, jd_text)
 
     # 2) 命中统计（按维度加权）
     rl = (resume_text or "").lower()
@@ -416,7 +552,7 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
     total_w = 0
     matched_w = 0
 
-    for sk in spec["skills"]:
+    for sk in target_skills:
         d = sk["dim"]
         w = sk["importance"]
         dim_stat[d]["total"] += w
@@ -464,12 +600,24 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
     )
 
     # 5) 事实台账
-    ledger = build_fact_ledger(spec, resume_text, all_matched_labels)
+    ledger = build_fact_ledger(
+        spec,
+        resume_text,
+        all_matched_labels,
+        skills=target_skills,
+    )
+    resume_optimization = build_resume_optimization(
+        jd_text,
+        resume_text,
+        target_skills,
+        all_matched_labels,
+    )
 
     return {
         "role": role_key,
         "role_label": spec["label"],
         "role_desc": spec.get("desc", ""),
+        "target_skill_count": len(target_skills),
         "overall_score": overall,
         "dimensions": dimensions,
         "matched_skills": matched_skills,
@@ -477,6 +625,7 @@ def analyze(jd_text: str, resume_text: str, role: str = "auto") -> dict:
         "gap_count": len(gap_list),
         "five_dim_review": five_dim,
         "fact_ledger": ledger,
+        "resume_optimization": resume_optimization,
     }
 
 
