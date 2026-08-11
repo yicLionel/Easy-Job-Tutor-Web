@@ -865,7 +865,7 @@ INTERVIEW_BASE_EN = {
 def _keyword_pattern(keyword: str) -> re.Pattern[str]:
     """Build the lexical matcher shared by role and requirement discovery."""
     escaped = re.escape(keyword)
-    if re.fullmatch(r"[A-Za-z0-9]+", keyword) and len(keyword) <= 3:
+    if re.search(r"[A-Za-z0-9]", keyword):
         escaped = rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])"
     return re.compile(escaped, re.IGNORECASE)
 

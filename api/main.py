@@ -4,7 +4,7 @@ import os
 import secrets
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, Request, Response, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -30,16 +30,17 @@ def create_app(serve_static: bool | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def add_legacy_deprecation_header(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path == "/api/analyze":
+            response.headers["Deprecation"] = "true"
+        return response
+
     @app.exception_handler(ApiError)
     async def api_error_handler(request: Request, exc: ApiError):
-        headers = (
-            {"Deprecation": "true"}
-            if request.url.path == "/api/analyze"
-            else None
-        )
         return JSONResponse(
             status_code=exc.status_code,
-            headers=headers,
             content={
                 "ok": False,
                 "error_code": exc.error_code,
@@ -107,13 +108,11 @@ def create_app(serve_static: bool | None = None) -> FastAPI:
 
     @app.post("/api/analyze")
     async def legacy_analyze_endpoint(
-        response: Response,
         jd: Optional[str] = Form(None),
         role: str = Form("auto"),
         resume: Optional[UploadFile] = File(None),
         privacy_consent_version: Optional[str] = Form(None),
     ):
-        response.headers["Deprecation"] = "true"
         return await handle_analysis(
             jd,
             role,

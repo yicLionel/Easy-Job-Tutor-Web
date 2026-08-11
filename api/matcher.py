@@ -259,16 +259,24 @@ _PREFERRED_LANGUAGE = re.compile(
 )
 
 
+def _normalize_statement(statement: str) -> str:
+    return re.sub(r"\s+", " ", statement).strip().casefold()
+
+
 def split_jd_statements(jd_text: str) -> list[str]:
     """Split and clean bounded JD statements while preserving their order."""
     statements: list[str] = []
+    seen_normalized: set[str] = set()
     for raw_statement in _JD_TERMINATORS.split(jd_text or ""):
         statement = _BULLET_PREFIX.sub("", raw_statement).strip()
         if len(statement) < 6:
             continue
         statement = statement[:300].rstrip()
-        if statement not in statements:
-            statements.append(statement)
+        normalized = _normalize_statement(statement)
+        if normalized in seen_normalized:
+            continue
+        seen_normalized.add(normalized)
+        statements.append(statement)
     return statements
 
 
@@ -289,7 +297,7 @@ def _statement_has_skill(statement: str, skill: dict[str, Any]) -> bool:
 
 
 def _unknown_requirement(statement: str) -> dict[str, Any]:
-    normalized = re.sub(r"\s+", " ", statement).strip().casefold()
+    normalized = _normalize_statement(statement)
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
     return {
         "requirement_id": f"unknown-{digest}",

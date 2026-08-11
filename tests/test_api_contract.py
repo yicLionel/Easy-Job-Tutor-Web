@@ -158,6 +158,7 @@ class AnalysisContractTests(unittest.TestCase):
 
         self.assertEqual(versioned.status_code, 200)
         self.assertEqual(legacy.status_code, 200)
+        self.assertIsNone(versioned.headers.get("Deprecation"))
         self.assertEqual(legacy.headers.get("Deprecation"), "true")
         self.assertEqual(set(legacy.json()), SUCCESS_KEYS)
         self.assertEqual(set(legacy.json()), set(versioned.json()))
@@ -165,6 +166,51 @@ class AnalysisContractTests(unittest.TestCase):
             set(legacy.json()["coverage_summary"]),
             set(versioned.json()["coverage_summary"]),
         )
+
+    def test_legacy_route_sets_deprecation_header_on_api_error(self):
+        data = {
+            "jd": "too short",
+            "privacy_consent_version": "2026-08-11",
+        }
+        versioned = self.client.post("/api/v1/analyses", data=data)
+        legacy = self.client.post("/api/analyze", data=data)
+
+        self.assertEqual(versioned.status_code, 400)
+        self.assertEqual(legacy.status_code, 400)
+        self.assertIsNone(versioned.headers.get("Deprecation"))
+        self.assertEqual(legacy.headers.get("Deprecation"), "true")
+        versioned_body = versioned.json()
+        legacy_body = legacy.json()
+        self.assertEqual(set(legacy_body), set(versioned_body))
+        for key in set(legacy_body) - {"request_id"}:
+            self.assertEqual(legacy_body[key], versioned_body[key])
+        self.assertTrue(versioned_body["request_id"])
+        self.assertTrue(legacy_body["request_id"])
+        self.assertEqual(legacy_body["error_code"], "JD_TOO_SHORT")
+
+    def test_legacy_route_sets_deprecation_header_on_framework_422(self):
+        data = {
+            "jd": "Python experience is required for deployed internal services. " * 2,
+            "privacy_consent_version": "2026-08-11",
+        }
+        malformed_resume = {"resume": (None, "not-an-upload")}
+
+        versioned = self.client.post(
+            "/api/v1/analyses",
+            data=data,
+            files=malformed_resume,
+        )
+        legacy = self.client.post(
+            "/api/analyze",
+            data=data,
+            files=malformed_resume,
+        )
+
+        self.assertEqual(versioned.status_code, 422)
+        self.assertEqual(legacy.status_code, 422)
+        self.assertIsNone(versioned.headers.get("Deprecation"))
+        self.assertEqual(legacy.headers.get("Deprecation"), "true")
+        self.assertEqual(legacy.json(), versioned.json())
 
     def test_unknown_only_jd_has_null_coverage_warning_and_visible_lines(self):
         result = self._analyze(
@@ -203,6 +249,72 @@ class AnalysisContractTests(unittest.TestCase):
         self.assertEqual(first_id, "unknown-df8694329713")
         self.assertEqual(second["requirements"][0]["requirement_id"], first_id)
 
+    def test_normalized_duplicate_unknowns_emit_one_first_seen_requirement(self):
+        result = self._analyze(
+            "MUST own Martian sample custody.\n"
+            "must   own Martian sample custody.",
+            "Prepared unrelated project records.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["coverage_summary"]["known_requirement_count"], 0)
+        self.assertEqual(result["coverage_summary"]["unknown_requirement_count"], 1)
+        self.assertEqual(len(result["requirements"]), 1)
+        self.assertEqual(
+            result["requirements"][0]["requirement_id"],
+            "unknown-b1cea9fe937a",
+        )
+        self.assertEqual(
+            result["requirements"][0]["jd_evidence"],
+            "MUST own Martian sample custody",
+        )
+
+    def test_normalized_unknown_dedup_preserves_mixed_known_counts(self):
+        result = self._analyze(
+            "Python experience is required.\n"
+            "MUST own Martian sample custody.\n"
+            "must   own Martian sample custody.",
+            "Built a Python service for internal teams.",
+            role="ai_agent",
+        )
+
+        self.assertEqual(result["coverage_summary"]["known_requirement_count"], 1)
+        self.assertEqual(result["coverage_summary"]["unknown_requirement_count"], 1)
+        self.assertEqual(
+            [item["requirement_id"] for item in result["requirements"]],
+            ["aa_py", "unknown-b1cea9fe937a"],
+        )
+        self.assertEqual(
+            result["requirements"][1]["jd_evidence"],
+            "MUST own Martian sample custody",
+        )
+
+    def test_unknown_cap_applies_after_normalized_deduplication(self):
+        statements = [
+            "MUST own Martian sample custody.",
+            "must   own Martian sample custody.",
+            *[
+                f"MUST own Martian sample custody zone {index}."
+                for index in range(1, 13)
+            ],
+        ]
+
+        result = self._analyze(
+            "\n".join(statements),
+            "Prepared unrelated project records.",
+            role="ai_agent",
+        )
+        requirement_ids = [
+            item["requirement_id"] for item in result["requirements"]
+        ]
+
+        self.assertEqual(len(requirement_ids), 12)
+        self.assertEqual(len(set(requirement_ids)), 12)
+        self.assertEqual(
+            result["requirements"][0]["jd_evidence"],
+            "MUST own Martian sample custody",
+        )
+
     def test_boundary_aware_requirement_discovery_avoids_substring_hits(self):
         self.assertTrue(
             hasattr(matcher, "build_requirements"),
@@ -221,6 +333,83 @@ class AnalysisContractTests(unittest.TestCase):
         )
         self.assertEqual(len(requirements), 1)
         self.assertEqual(requirements[0]["priority"], "unknown")
+
+    def test_reactive_does_not_discover_react_requirements_or_rewrites(self):
+        result = self._analyze(
+            "Reactive platform ownership is required for this role.",
+            "Developed React services for production.",
+            role="ai_agent",
+        )
+
+        summary = result["coverage_summary"]
+        self.assertEqual(summary["known_requirement_count"], 0)
+        self.assertEqual(summary["unknown_requirement_count"], 1)
+        self.assertIsNone(summary["keyword_coverage"])
+        self.assertEqual(result["rewrite_suggestions"], [])
+        self.assertTrue(
+            {"aa_js", "aa_agent", "aa_fe"}.isdisjoint(
+                item["requirement_id"] for item in result["requirements"]
+            )
+        )
+
+    def test_interest_does_not_discover_rest_requirement_or_rewrite(self):
+        result = self._analyze(
+            "Interest in distributed service ownership is required.",
+            "Developed REST services for internal teams.",
+            role="ai_agent",
+        )
+
+        summary = result["coverage_summary"]
+        self.assertEqual(summary["known_requirement_count"], 0)
+        self.assertEqual(summary["unknown_requirement_count"], 1)
+        self.assertIsNone(summary["keyword_coverage"])
+        self.assertEqual(result["rewrite_suggestions"], [])
+        self.assertNotIn(
+            "aa_backend",
+            {item["requirement_id"] for item in result["requirements"]},
+        )
+
+    def test_symbol_bearing_and_cjk_keywords_remain_discoverable(self):
+        cases = (
+            (
+                "Node.js experience is required for this role.",
+                "Developed Node.js services for internal teams.",
+                "ai_agent",
+                {"aa_js"},
+            ),
+            (
+                "CI/CD experience is required for this role.",
+                "Implemented CI/CD pipelines for internal teams.",
+                "ai_agent",
+                {"aa_test", "aa_git"},
+            ),
+            (
+                "Fine-tune workflow experience is preferred for this role.",
+                "Developed fine-tune workflows for internal teams.",
+                "ai_agent",
+                {"aa_ft"},
+            ),
+            (
+                "A/B testing experience is preferred for this role.",
+                "Designed A/B tests for product experiments.",
+                "ai_product",
+                {"ap_data", "ap_ab"},
+            ),
+            (
+                "需要微调工作流经验并负责模型训练。",
+                "使用微调完成模型训练与内部交付。",
+                "ai_agent",
+                {"aa_ft"},
+            ),
+        )
+
+        for jd_text, resume_text, role, expected_ids in cases:
+            with self.subTest(jd_text=jd_text):
+                result = self._analyze(jd_text, resume_text, role=role)
+                requirement_ids = {
+                    item["requirement_id"] for item in result["requirements"]
+                }
+                self.assertTrue(expected_ids.issubset(requirement_ids))
 
     def test_preferred_language_marks_known_requirement_preferred(self):
         self.assertTrue(hasattr(matcher, "build_requirements"))
