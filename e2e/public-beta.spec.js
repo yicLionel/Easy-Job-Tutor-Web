@@ -122,6 +122,143 @@ test("health endpoint returns ok", async ({ request }) => {
   expect(body).toEqual({ status: "ok" });
 });
 
+test("telemetry sendBeacon payloads reuse analysis ID and exclude raw user content", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() => {
+    window.__telemetryBeacons = [];
+    Object.defineProperty(Navigator.prototype, "sendBeacon", {
+      configurable: true,
+      value(url, data) {
+        Promise.resolve(data.text()).then((body) => {
+          window.__telemetryBeacons.push({ url: String(url), body });
+        });
+        return true;
+      },
+    });
+  });
+  await page.route("**/api/v1/analyses", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(deterministicAnalysis),
+    });
+  });
+
+  await page.goto("/");
+  await page.waitForFunction(() => window.__telemetryBeacons.length >= 1);
+  await submitAnalysis(page);
+  await expect(page.getByTestId("analysis-result")).toBeVisible();
+  await page.getByTestId("suggestion-card").first().getByRole("button", { name: "接受" }).click();
+  await downloadMarkdown(page);
+  await page.getByRole("button", { name: "有帮助" }).click();
+  await page.waitForFunction(() => window.__telemetryBeacons.length >= 6);
+
+  const events = await page.evaluate(async () => {
+    await Promise.resolve();
+    return window.__telemetryBeacons.map(({ url, body }) => ({
+      url,
+      payload: JSON.parse(body),
+    }));
+  });
+  expect(events.every((event) => event.url === "/api/v1/events")).toBe(true);
+  expect(events.filter((event) => [
+    "analysis_started",
+    "analysis_succeeded",
+    "analysis_failed",
+    "upload_validation_failed",
+  ].includes(event.payload.name))).toEqual([]);
+  expect(events[0].payload).toEqual({
+    name: "page_viewed",
+    attributes: { device_category: "desktop", referrer_category: "direct" },
+  });
+
+  const evidenceEvents = events.filter((event) => event.payload.name === "evidence_viewed");
+  expect(evidenceEvents.map((event) => event.payload.attributes)).toEqual([
+    {
+      analysis_id: deterministicAnalysis.analysis_id,
+      requirement_id: "ap_user",
+      resume_status: "evidenced",
+    },
+    {
+      analysis_id: deterministicAnalysis.analysis_id,
+      requirement_id: "ap_ship",
+      resume_status: "evidenced",
+    },
+  ]);
+  expect(events.find((event) => event.payload.name === "suggestion_accepted").payload.attributes).toEqual({
+    analysis_id: deterministicAnalysis.analysis_id,
+    suggestion_id: "rw-confirmed",
+    algorithm_version: "evidence-v1",
+  });
+  expect(events.find((event) => event.payload.name === "draft_exported").payload.attributes).toEqual({
+    analysis_id: deterministicAnalysis.analysis_id,
+    format: "markdown",
+    suggestion_count: 1,
+    pending_count: 1,
+  });
+  expect(events.find((event) => event.payload.name === "feedback_submitted").payload.attributes).toEqual({
+    analysis_id: deterministicAnalysis.analysis_id,
+    rating: "helpful",
+    reason_code: "no_reason",
+  });
+
+  const serialized = JSON.stringify(events);
+  for (const privateValue of [
+    fs.readFileSync(JD_FIXTURE, "utf8"),
+    fs.readFileSync(RESUME_FIXTURE, "utf8"),
+    path.basename(RESUME_FIXTURE),
+    deterministicAnalysis.requirements[0].jd_evidence,
+    deterministicAnalysis.requirements[0].resume_evidence[0],
+    deterministicAnalysis.rewrite_suggestions[0].suggested,
+  ]) {
+    expect(serialized).not.toContain(privateValue);
+  }
+  for (const event of events.slice(1)) {
+    expect(event.payload.attributes.analysis_id).toBe(deterministicAnalysis.analysis_id);
+  }
+});
+
+test("telemetry fetch fallback is JSON keepalive and contains only categories", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "sendBeacon", {
+      configurable: true,
+      value: undefined,
+    });
+    const realFetch = window.fetch.bind(window);
+    window.__telemetryFetches = [];
+    window.fetch = (input, init = {}) => {
+      if (String(input) === "/api/v1/events") {
+        window.__telemetryFetches.push({
+          url: String(input),
+          method: init.method,
+          headers: init.headers,
+          body: init.body,
+          keepalive: init.keepalive,
+        });
+      }
+      return realFetch(input, init);
+    };
+  });
+  await page.route("**/api/v1/events", async (route) => {
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.goto("/");
+  await page.waitForFunction(() => window.__telemetryFetches.length === 1);
+  const telemetryFetch = await page.evaluate(() => window.__telemetryFetches[0]);
+
+  expect(telemetryFetch).toEqual({
+    url: "/api/v1/events",
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "page_viewed",
+      attributes: { device_category: "desktop", referrer_category: "direct" },
+    }),
+    keepalive: true,
+  });
+});
+
 test("public beta states its limits and requires privacy consent", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("公开 Beta")).toBeVisible();
@@ -183,7 +320,7 @@ test("user reviews evidence, accepts one suggestion, and exports only accepted w
 
   await page.goto("/");
   const requestPromise = page.waitForRequest((request) =>
-    new URL(request.url()).pathname.startsWith("/api/") && request.method() === "POST"
+    new URL(request.url()).pathname === "/api/v1/analyses" && request.method() === "POST"
   );
   await submitAnalysis(page);
   const analysisRequest = await requestPromise;
@@ -291,7 +428,9 @@ test("structured analysis errors show mapped guidance and request ID without leg
   const errorAlert = page.getByTestId("error-alert");
   await expect(errorAlert).toContainText("岗位 JD 至少需要 50 个字符，请补充完整岗位描述后重试。");
   await expect(errorAlert).toContainText("请求编号：req-e2e-jd-short");
-  expect(requestedPaths).toEqual(["/api/v1/analyses"]);
+  expect(requestedPaths.filter((requestPath) => requestPath !== "/api/v1/events")).toEqual([
+    "/api/v1/analyses",
+  ]);
 });
 
 test("populated mobile results wrap long API evidence and suggestions without losing content", async ({ page }) => {

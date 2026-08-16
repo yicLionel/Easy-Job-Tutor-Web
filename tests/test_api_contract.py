@@ -210,7 +210,20 @@ class AnalysisContractTests(unittest.TestCase):
         self.assertEqual(legacy.status_code, 422)
         self.assertIsNone(versioned.headers.get("Deprecation"))
         self.assertEqual(legacy.headers.get("Deprecation"), "true")
-        self.assertEqual(legacy.json(), versioned.json())
+        versioned_body = versioned.json()
+        legacy_body = legacy.json()
+        self.assertEqual(set(legacy_body), set(versioned_body))
+        for key in set(legacy_body) - {"request_id"}:
+            self.assertEqual(legacy_body[key], versioned_body[key])
+        self.assertEqual(versioned_body["error_code"], "REQUEST_VALIDATION_FAILED")
+        self.assertEqual(
+            versioned_body["request_id"],
+            versioned.headers["x-request-id"],
+        )
+        self.assertEqual(
+            legacy_body["request_id"],
+            legacy.headers["x-request-id"],
+        )
 
     def test_unknown_only_jd_has_null_coverage_warning_and_visible_lines(self):
         result = self._analyze(

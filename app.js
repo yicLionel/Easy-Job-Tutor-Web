@@ -4,6 +4,48 @@ const { createApp, reactive, ref, computed, onMounted, onUnmounted, nextTick } =
 // ── i18n 字典 ──────────────────────────────────────────
 const PRIVACY_CONSENT_VERSION = "2026-08-11";
 const ANALYSIS_TIMEOUT_MS = 22_000;
+const ALGORITHM_VERSION = "evidence-v1";
+const SAFE_ANALYSIS_ID = /^[a-f0-9]{32}$/;
+const SAFE_ENTITY_ID = /^[a-z0-9_-]{1,64}$/;
+
+const trackEvent = (name, attributes = {}) => {
+  const body = JSON.stringify({ name, attributes });
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon("/api/v1/events", new Blob([body], { type: "application/json" }));
+    return;
+  }
+  fetch("/api/v1/events", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+    keepalive: true,
+  }).catch(() => {});
+};
+
+const deviceCategory = () => {
+  if (!Number.isFinite(window.innerWidth)) return "unknown";
+  if (window.innerWidth <= 767) return "mobile";
+  if (window.innerWidth <= 1024) return "tablet";
+  return "desktop";
+};
+
+const referrerCategory = () => {
+  if (!document.referrer) return "direct";
+  try {
+    const hostname = new URL(document.referrer).hostname.toLowerCase();
+    const matches = (domain) => hostname === domain || hostname.endsWith(`.${domain}`);
+    if (["google.com", "bing.com", "yahoo.com", "duckduckgo.com", "baidu.com"].some(matches)) {
+      return "search";
+    }
+    if (["linkedin.com", "facebook.com", "instagram.com", "x.com", "twitter.com"].some(matches)) {
+      return "social";
+    }
+    return "referral";
+  } catch (_) {
+    return "unknown";
+  }
+};
+
 const API_ERROR_MESSAGES = Object.freeze({
   PRIVACY_CONSENT_REQUIRED: "请重新确认隐私说明与使用条款后再试。",
   JD_TOO_SHORT: "岗位 JD 至少需要 50 个字符，请补充完整岗位描述后重试。",
@@ -177,6 +219,10 @@ createApp({
     onMounted(() => {
       syncViewport();
       window.addEventListener("resize", syncViewport);
+      trackEvent("page_viewed", {
+        device_category: deviceCategory(),
+        referrer_category: referrerCategory(),
+      });
     });
     onUnmounted(() => { window.removeEventListener("resize", syncViewport); });
 
@@ -301,6 +347,16 @@ createApp({
       Object.keys(target).forEach((key) => delete target[key]);
     };
 
+    const currentAnalysisId = () => (
+      SAFE_ANALYSIS_ID.test(result.analysis_id || "") ? result.analysis_id : null
+    );
+
+    const trackAnalysisEvent = (name, attributes = {}) => {
+      const analysisId = currentAnalysisId();
+      if (!analysisId) return;
+      trackEvent(name, { analysis_id: analysisId, ...attributes });
+    };
+
     const initializeSuggestionDecisions = (suggestions) => {
       clearReactiveObject(suggestionDecisions);
       clearReactiveObject(confirmedPendingFacts);
@@ -325,6 +381,23 @@ createApp({
       };
       if (decision !== "edited") {
         confirmedPendingFacts[suggestion.suggestion_id] = false;
+      }
+      if (!SAFE_ENTITY_ID.test(suggestion.suggestion_id || "")) return;
+      if (decision === "accepted") {
+        trackAnalysisEvent("suggestion_accepted", {
+          suggestion_id: suggestion.suggestion_id,
+          algorithm_version: ALGORITHM_VERSION,
+        });
+      } else if (decision === "edited") {
+        trackAnalysisEvent("suggestion_edited", {
+          suggestion_id: suggestion.suggestion_id,
+          confirmed_pending_facts: confirmedPendingFacts[suggestion.suggestion_id] === true,
+        });
+      } else if (decision === "rejected") {
+        trackAnalysisEvent("suggestion_rejected", {
+          suggestion_id: suggestion.suggestion_id,
+          reason_code: "no_reason",
+        });
       }
     };
 
@@ -429,6 +502,17 @@ createApp({
         clearReactiveObject(result);
         Object.assign(result, data);
         initializeSuggestionDecisions(data.rewrite_suggestions);
+        (Array.isArray(data.requirements) ? data.requirements : []).forEach((requirement) => {
+          if (
+            SAFE_ENTITY_ID.test(requirement.requirement_id || "") &&
+            ["evidenced", "uncertain", "not_found"].includes(requirement.resume_status)
+          ) {
+            trackAnalysisEvent("evidence_viewed", {
+              requirement_id: requirement.requirement_id,
+              resume_status: requirement.resume_status,
+            });
+          }
+        });
         feedbackRating.value = "";
         step.value = 2;
       } catch (e) {
@@ -513,10 +597,20 @@ createApp({
       anchor.download = "简历优化草稿.md";
       anchor.click();
       URL.revokeObjectURL(anchor.href);
+      trackAnalysisEvent("draft_exported", {
+        format: "markdown",
+        suggestion_count: exportableSuggestions.value.length,
+        pending_count: pendingExcludedCount.value,
+      });
     };
 
     const setFeedbackRating = (rating) => {
+      if (!["helpful", "neutral", "unhelpful"].includes(rating)) return;
       feedbackRating.value = rating;
+      trackAnalysisEvent("feedback_submitted", {
+        rating,
+        reason_code: "no_reason",
+      });
     };
 
     return {
