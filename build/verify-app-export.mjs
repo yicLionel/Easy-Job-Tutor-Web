@@ -65,6 +65,10 @@ async function main() {
     await page.getByLabel("个人简介", { exact: true }).fill("计算机科学专业应届生，专注检索增强生成与后端服务开发，具备从需求分析到部署上线的项目经验。");
     await page.getByLabel("学校", { exact: true }).fill("某某大学");
     await page.getByLabel("学位 / 专业", { exact: true }).fill("计算机科学与技术 本科");
+    await page.getByLabel("项目名称", { exact: true }).fill("AI 求职助手");
+    await page.getByLabel("技术栈", { exact: true }).fill("Python、FastAPI、Vue");
+    await page.getByLabel("项目背景", { exact: true }).fill("个人项目");
+    await page.getByLabel("时间", { exact: true }).nth(2).fill("2025.03 - 2025.06");
 
     await page.locator(".resume-sheet").waitFor();
     await page.waitForTimeout(300);

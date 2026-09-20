@@ -616,6 +616,7 @@
                 <label class="pdf-field"><span>{{ t("pdf_field_project_name") }}</span><input v-model="item.name" type="text" /></label>
                 <label class="pdf-field"><span>{{ t("pdf_field_tech") }}</span><input v-model="item.techStack" type="text" /></label>
                 <label class="pdf-field"><span>{{ t("pdf_field_context") }}</span><input v-model="item.context" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_dates") }}</span><input v-model="item.dates" type="text" /></label>
               </div>
               <label class="pdf-field"><span>{{ t("pdf_field_bullets") }}</span><textarea v-model="item.bullets" rows="3"></textarea></label>
             </div>
@@ -701,7 +702,7 @@
                   <article v-for="(item, i) in filledProjects" :key="'pprj' + i" class="rs-entry">
                     <div class="rs-entry-head">
                       <span class="rs-entry-title">{{ [item.name, item.techStack].filter(Boolean).join(" - ") }}</span>
-                      <span class="rs-entry-meta">{{ item.context }}</span>
+                      <span class="rs-entry-meta">{{ [item.context, item.dates].filter(Boolean).join(" | ") }}</span>
                     </div>
                     <ul class="rs-bullets" v-if="listLines(item.bullets).length">
                       <li v-for="(line, j) in listLines(item.bullets)" :key="j">{{ line }}</li>

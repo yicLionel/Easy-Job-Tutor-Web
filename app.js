@@ -610,7 +610,7 @@ createApp({
         case "experience":
           return { company: "", role: "", location: "", dates: "", bullets: "" };
         case "projects":
-          return { name: "", techStack: "", context: "", bullets: "" };
+          return { name: "", techStack: "", context: "", dates: "", bullets: "" };
         case "skills":
           return { category: "", items: "" };
         case "awards":
