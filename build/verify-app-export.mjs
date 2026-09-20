@@ -53,8 +53,14 @@ async function main() {
     await page.locator('input[type="file"]').setInputFiles(resumeFixture);
     await page.locator(".actions button.primary").first().click();
 
-    await page.locator(".sidebar-nav-item").filter({ hasText: "简历 PDF" }).waitFor({ timeout: 30000 });
-    await page.locator(".sidebar-nav-item").filter({ hasText: "简历 PDF" }).click();
+    const pdfNav = page.locator(".sidebar-nav-item").filter({ hasText: "简历 PDF" });
+    // Wait until the analysis result enables the nav item, not just its presence.
+    await page.waitForFunction(() => {
+      const items = Array.from(document.querySelectorAll(".sidebar-nav-item"));
+      const target = items.find((item) => item.textContent.includes("简历 PDF"));
+      return Boolean(target) && !target.classList.contains("disabled");
+    }, null, { timeout: 60000 });
+    await pdfNav.click();
 
     await page.locator(".resume-sheet").waitFor({ timeout: 15000 });
 
