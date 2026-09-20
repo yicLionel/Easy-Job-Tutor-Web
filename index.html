@@ -73,6 +73,13 @@
           <button class="sidebar-action primary-action" @click="jumpToStep(1)">{{ t("sidebar_new") }}</button>
           <button class="sidebar-action" @click="reset">{{ t("sidebar_clear") }}</button>
           <button
+            v-if="result.mode === 'complete' && result.resume_optimization"
+            class="sidebar-action"
+            @click="downloadOptimizedResume"
+          >
+            {{ t("resume_opt_export") }}
+          </button>
+          <button
             v-if="result.mode === 'complete' && step === 4"
             class="sidebar-action"
             @click="downloadPlan"
@@ -415,6 +422,52 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          <div class="resume-optimization" v-if="result.resume_optimization">
+            <h3 class="block-title">{{ t("resume_opt_title") }}</h3>
+            <p class="hint">{{ t("resume_opt_hint") }}</p>
+            <div class="optimization-policy">{{ t("resume_opt_policy") }}</div>
+
+            <div class="optimization-keywords">
+              <div class="optimization-keyword-group">
+                <strong>{{ t("resume_opt_target") }}</strong>
+                <div class="tag-list">
+                  <span v-for="keyword in result.resume_optimization.target_keywords" :key="keyword" class="tag tag-tech">{{ keyword }}</span>
+                  <span v-if="!result.resume_optimization.target_keywords?.length" class="empty-hint">—</span>
+                </div>
+              </div>
+              <div class="optimization-keyword-group">
+                <strong>{{ t("resume_opt_missing") }}</strong>
+                <div class="tag-list">
+                  <span v-for="keyword in result.resume_optimization.missing_keywords" :key="keyword" class="tag tag-preferred">{{ keyword }}</span>
+                  <span v-if="!result.resume_optimization.missing_keywords?.length" class="empty-hint">—</span>
+                </div>
+              </div>
+            </div>
+
+            <h4 class="optimization-subtitle">{{ t("resume_opt_bullets") }}</h4>
+            <div v-if="result.resume_optimization.bullet_rewrites?.length" class="optimization-list">
+              <article v-for="(item, index) in result.resume_optimization.bullet_rewrites" :key="item.source + index" class="optimization-item">
+                <div class="optimization-index">{{ index + 1 }}</div>
+                <div class="optimization-content">
+                  <div class="optimization-label">{{ t("resume_opt_source") }}</div>
+                  <p class="optimization-source">{{ item.source }}</p>
+                  <div class="optimization-label">{{ t("resume_opt_suggested") }}</div>
+                  <p class="optimization-suggested">{{ item.suggested_bullet }}</p>
+                  <div class="optimization-meta" v-if="item.matched_keywords?.length">
+                    <span>{{ t("resume_opt_keywords") }}：</span>
+                    <span v-for="keyword in item.matched_keywords" :key="keyword" class="imp-tag">{{ keyword }}</span>
+                  </div>
+                  <p class="optimization-metric"><strong>{{ t("resume_opt_metric") }}：</strong>{{ item.quantification_prompt }}</p>
+                </div>
+              </article>
+            </div>
+            <p v-else class="empty-hint">{{ t("resume_opt_empty") }}</p>
+
+            <div class="actions">
+              <button class="primary" @click="downloadOptimizedResume">{{ t("resume_opt_export") }}</button>
             </div>
           </div>
 

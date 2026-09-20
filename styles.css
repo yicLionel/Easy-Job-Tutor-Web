@@ -524,3 +524,37 @@ button { cursor: pointer; border: none; border-radius: 10px; font-size: 14px; pa
 .badge-green { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .badge-orange { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
 .badge-gray { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+
+/* ── 简历优化 ─────────────────────────────────────────── */
+.resume-optimization { border-top: 1px solid var(--line); margin-top: 26px; padding-top: 2px; }
+.optimization-policy {
+  border-left: 3px solid var(--orange); background: #fffaf2; color: #8a4b08;
+  padding: 10px 12px; border-radius: 8px; font-size: 12.5px; margin-bottom: 16px;
+}
+.optimization-keywords { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.optimization-keyword-group {
+  border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; background: #fcfdff;
+}
+.optimization-keyword-group strong { display: block; font-size: 13px; margin-bottom: 9px; }
+.optimization-subtitle { font-size: 14px; margin: 20px 0 10px; }
+.optimization-list { display: grid; gap: 12px; }
+.optimization-item {
+  display: flex; gap: 12px; border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px; background: #fff;
+}
+.optimization-index {
+  flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid;
+  place-items: center; background: var(--brand-soft); color: var(--brand); font-weight: 700; font-size: 12px;
+}
+.optimization-content { min-width: 0; flex: 1; }
+.optimization-label { color: var(--muted); font-size: 11.5px; font-weight: 700; margin-bottom: 3px; }
+.optimization-source, .optimization-suggested, .optimization-metric { margin: 0 0 10px; font-size: 13px; white-space: pre-wrap; }
+.optimization-source { color: #3a4453; }
+.optimization-suggested { color: var(--brand); background: var(--brand-soft); padding: 9px 10px; border-radius: 8px; }
+.optimization-metric { color: #8a4b08; background: #fffaf2; padding: 8px 10px; border-radius: 8px; margin-bottom: 0; }
+.optimization-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); font-size: 11.5px; margin-bottom: 10px; }
+
+@media (max-width: 640px) {
+  .optimization-keywords { grid-template-columns: 1fr; }
+  .optimization-item { padding: 12px; }
+}
