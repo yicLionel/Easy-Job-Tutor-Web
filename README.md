@@ -43,6 +43,14 @@
 - 通用面试题 + 针对差距的定制追问
 - 支持**一键下载**完整 Markdown 方案
 
+### 简历 PDF 导出（前端生成）
+
+- 结构化表单（基本信息 / 简介 / 教育 / 经历 / 项目 / 技能 / 荣誉）+ A4 实时预览
+- 三种风格：**现代简约**（默认）、**经典专业**、**清爽创意**，风格来自 Easy-Job-Tutor Skill 的 PDF 设计规范
+- **一键下载** A4 / Letter 简历 PDF，纯前端生成，**文字可选中、ATS 可读**，不依赖截图
+- 中文使用子集化的思源黑体；导出时按需加载引擎与字体，不拖慢首屏
+- 分析结果中的改写要点只取**简历原文**预填，`待确认` 内容不会被自动写入 PDF
+
 ### 其他
 
 - 🌐 **中英文双语**：界面与分析结果一键切换（zh / en）
@@ -56,7 +64,8 @@
 | 层 | 技术 |
 |----|------|
 | 后端 | **FastAPI**（简历解析、匹配度计算、路线生成） |
-| 前端 | **Vue 3**（CDN 引入，无构建步骤） |
+| 前端 | **Vue 3**（CDN 引入，无框架构建步骤） |
+| PDF 导出 | **@hmfw/html-to-pdf**（pdf-lib，矢量文字）+ esbuild 打包，字体子集化 |
 | 简历解析 | pdfplumber / pypdf / python-docx（PDF / Word / TXT） |
 | 部署 | **Vercel** Serverless + 静态托管 |
 
@@ -69,6 +78,9 @@
 ├── index.html            # 前端入口（Vercel 静态托管）
 ├── app.js                # Vue 3 前端逻辑
 ├── styles.css            # 样式
+├── vendor/               # 浏览器 PDF 引擎产物（构建生成）
+├── fonts/                # 子集化中文预览字体 + @font-face
+├── build/                # 打包、字体子集化与验证脚本
 ├── requirements.txt      # Python 依赖（Vercel 从项目根目录读取）
 ├── .python-version       # Vercel Python 版本
 ├── vercel.json           # Vercel 配置（零配置路由）
@@ -93,6 +105,19 @@ pytest tests/
 ```
 
 覆盖：API 入口点可用性、简历文本解析（PDF / Word / TXT）、JD 定向匹配和事实保护型优化草稿。
+
+### PDF 导出构建与验证
+
+`vendor/` 与 `fonts/` 已随仓库提供，常规开发无需重新构建；修改依赖或字体时才需要：
+
+```bash
+npm install              # 安装 esbuild / @hmfw/html-to-pdf
+npm run build:pdf        # 重新打包 vendor/html-to-pdf.browser.js
+npm run build:fonts      # 从 fonts/raw-*.woff 重新生成子集字体
+npm run check            # JS 语法检查
+npm run verify:pdf       # 无头浏览器导出 PDF 并校验中文可选中
+npm run verify:app       # 驱动真实页面走完分析 → 导出流程（需先启动服务）
+```
 
 ---
 

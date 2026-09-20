@@ -16,3 +16,11 @@ PROJECT_RECORD.md
 
 # 系统文件
 .DS_Store
+
+# 前端构建与验证产物
+node_modules/
+build/artifacts/
+test-results/
+
+# 未子集化的原始字体（用 build/subset-fonts.py 重新生成）
+fonts/raw-*.woff

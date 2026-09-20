@@ -558,3 +558,109 @@ button { cursor: pointer; border: none; border-radius: 10px; font-size: 14px; pa
   .optimization-keywords { grid-template-columns: 1fr; }
   .optimization-item { padding: 12px; }
 }
+
+/* ════════════════ 简历 PDF 导出 ════════════════ */
+.error {
+  color: var(--red); background: #fef2f2; border: 1px solid #fecaca;
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 0 0 14px;
+}
+.notice {
+  color: var(--green); background: #f0fdf4; border: 1px solid #bbf7d0;
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 0 0 14px;
+}
+.pdf-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.pdf-form { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pdf-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.pdf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.pdf-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); min-width: 0; }
+.pdf-field.wide { grid-column: 1 / -1; }
+.pdf-field input, .pdf-field select, .pdf-field textarea {
+  border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  font-size: 13px; font-family: inherit; color: var(--ink); background: #fff;
+  font-weight: 400; resize: vertical;
+}
+.pdf-field input:focus, .pdf-field select:focus, .pdf-field textarea:focus {
+  outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.pdf-entry {
+  position: relative; border: 1px dashed var(--line); border-radius: 10px;
+  padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #fcfcfe;
+}
+.pdf-remove {
+  position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; padding: 0;
+  border-radius: 6px; background: #fff; border: 1px solid var(--line);
+  color: var(--muted); font-size: 12px; line-height: 1;
+}
+.pdf-remove:hover { border-color: var(--red); color: var(--red); }
+.pdf-page .block-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ghost.mini { padding: 3px 10px; font-size: 12px; border-radius: 7px; }
+.pdf-actions-bottom { margin-top: 18px; }
+.pdf-preview-pane { position: sticky; top: 14px; min-width: 0; }
+.pdf-preview-title { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+.pdf-preview-scroll { overflow: auto; background: #eef2f7; border-radius: 12px; padding: 14px; max-height: 84vh; }
+
+/* 预览与导出共用同一 DOM；仅使用 @hmfw/html-to-pdf 支持的 CSS
+   （无渐变、无复杂 flex/grid、实线分隔、真实元素代替伪元素）。 */
+.resume-sheet {
+  --rs-accent: #2563eb;
+  --rs-accent-soft: #eaf1ff;
+  --rs-panel: #f7f9fc;
+  --rs-dot: #d97757;
+  --rs-top: #111827;
+  --rs-ink: #141922;
+  --rs-muted: #667085;
+  --rs-hairline: #dbe2ea;
+  background: #ffffff;
+  color: var(--rs-ink);
+  font-family: "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.3;
+  margin: 0;
+  min-height: 1123px;
+  padding: 34px 40px 38px;
+  width: 794px;
+}
+.resume-style-classic-professional {
+  --rs-accent: #111827; --rs-accent-soft: #f3f4f6; --rs-panel: #f9fafb;
+  --rs-dot: #6b7280; --rs-top: #111827;
+  font-family: Georgia, "Times New Roman", "Songti SC", serif;
+}
+.resume-style-creative-clean {
+  --rs-accent: #2f6f73; --rs-accent-soft: #e9f5f4; --rs-panel: #f7fbfb;
+  --rs-dot: #d97757; --rs-top: #2f6f73;
+}
+.rs-header {
+  border: 1px solid var(--rs-hairline); border-top: 4px solid var(--rs-top);
+  border-radius: 6px; margin-bottom: 20px; padding: 18px 20px 20px;
+}
+.rs-name { color: var(--rs-top); font-size: 34px; font-weight: 800; line-height: 1.05; margin: 0 0 8px; }
+.rs-target { color: var(--rs-muted); font-size: 14.5px; font-weight: 800; margin: 0 0 12px; }
+.rs-contact { margin: 0; }
+.rs-chip {
+  background: #f8fafc; border: 1px solid var(--rs-hairline); border-radius: 4px;
+  color: #1f2937; display: inline-block; font-size: 12.2px; font-weight: 650;
+  margin: 0 7px 6px 0; padding: 5px 8px;
+}
+.rs-section { margin-top: 16px; }
+.rs-h2 {
+  border-bottom: 2px solid var(--rs-accent); color: #101828; font-size: 16px;
+  font-weight: 800; line-height: 1.2; margin: 0 0 9px; padding-bottom: 5px;
+}
+.rs-entry { border-left: 3px solid var(--rs-accent-soft); margin-top: 12px; padding-left: 12px; }
+.rs-entry-head { margin-bottom: 4px; }
+.rs-entry-title { color: var(--rs-top); font-size: 13.7px; font-weight: 800; }
+.rs-entry-meta { color: #4b5563; font-size: 12.1px; font-weight: 700; margin-left: 8px; }
+.rs-summary { margin: 0 0 5px; }
+.rs-bullets { font-size: 13.05px; line-height: 1.34; margin: 4px 0 0; padding-left: 19px; }
+.rs-bullets li { margin: 3px 0 0; }
+.rs-skills {
+  background: var(--rs-panel); border: 1px solid var(--rs-hairline); border-radius: 8px;
+  font-size: 12.9px; line-height: 1.4; list-style: none; margin: 0; padding: 10px 12px;
+}
+.rs-skills li { margin: 3px 0 0; }
+
+@media (max-width: 1100px) {
+  .pdf-layout { grid-template-columns: 1fr; }
+  .pdf-preview-pane { position: static; }
+  .pdf-preview-scroll { max-height: 60vh; }
+}

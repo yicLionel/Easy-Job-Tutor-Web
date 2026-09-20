@@ -1,0 +1,22 @@
+/*
+ * Preview fonts for the resume PDF page.
+ *
+ * Loaded only when the user opens the PDF page. The same subset woff files are
+ * handed to @hmfw/html-to-pdf during export, so the preview and the PDF use the
+ * same glyphs.
+ */
+@font-face {
+  font-family: "Source Han Sans SC";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Source_Han_Sans_SC_Regular.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Source Han Sans SC";
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  src: url("/fonts/Source_Han_Sans_SC_Bold.woff") format("woff");
+}

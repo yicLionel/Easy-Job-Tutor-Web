@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>PDF export smoke fixture</title>
+  <style>
+    /* Modern Minimal, restricted to the CSS subset @hmfw/html-to-pdf supports:
+       no gradients, no flex/grid, solid accent rules, real dot elements. */
+    body { margin: 0; background: #eef2f7; font-family: "Source Han Sans SC", sans-serif; }
+    .resume {
+      background: #ffffff;
+      box-sizing: border-box;
+      color: #141922;
+      font-size: 13.5px;
+      line-height: 1.3;
+      margin: 0 auto;
+      max-width: 794px;
+      padding: 34px 40px 38px;
+    }
+    .resume-header { border: 1px solid #dbe2ea; border-top: 4px solid #111827; border-radius: 6px; margin-bottom: 20px; padding: 18px 20px 20px; }
+    h1 { color: #111827; font-size: 34px; font-weight: 800; line-height: 1.05; margin: 0 0 8px; }
+    .target { color: #667085; font-size: 14.5px; font-weight: 800; margin: 0 0 12px; }
+    .contact { margin: 0; }
+    .contact-item { background: #f8fafc; border: 1px solid #dbe2ea; border-radius: 4px; color: #1f2937; display: inline-block; font-size: 12.2px; font-weight: 650; margin: 0 7px 6px 0; padding: 5px 8px; }
+    .section { margin-top: 16px; }
+    .section h2 { border-bottom: 2px solid #2563eb; color: #101828; font-size: 16px; font-weight: 800; line-height: 1.2; margin: 0 0 9px; padding-bottom: 5px; }
+    .entry { border-left: 3px solid #eaf1ff; margin-top: 12px; padding-left: 12px; }
+    .entry-title { color: #111827; font-size: 13.7px; font-weight: 800; }
+    .entry-meta { color: #4b5563; font-size: 12.1px; font-weight: 700; }
+    .bullet-list { font-size: 13.05px; line-height: 1.34; margin: 4px 0 0; padding-left: 19px; }
+    .bullet-list li { margin: 3px 0 0; }
+    .skills-list { background: #f7f9fc; border: 1px solid #dbe2ea; border-radius: 8px; font-size: 12.9px; line-height: 1.4; list-style: none; margin: 0; padding: 10px 12px; }
+    .skills-list li { margin: 3px 0 0; }
+  </style>
+</head>
+<body>
+  <!-- data-pdf marks the element parsed into the PDF -->
+  <main class="resume" id="resume" data-pdf>
+    <header class="resume-header">
+      <h1>陈小明</h1>
+      <p class="target">AI Agent 开发工程师 · 应届生</p>
+      <p class="contact">
+        <span class="contact-item">chen@example.com</span>
+        <span class="contact-item">138-0000-0000</span>
+        <span class="contact-item">上海</span>
+        <span class="contact-item">github.com/chenxm</span>
+      </p>
+    </header>
+
+    <section class="section">
+      <h2>个人简介</h2>
+      <p>计算机科学专业应届生，专注检索增强生成与后端服务开发，具备从需求分析到部署上线的项目经验。</p>
+    </section>
+
+    <section class="section">
+      <h2>教育背景</h2>
+      <article class="entry">
+        <span class="entry-title">某某大学 - 计算机科学与技术</span>
+        <span class="entry-meta">2022 - 2026</span>
+        <ul class="bullet-list">
+          <li>相关课程：机器学习、算法设计、数据库系统、软件工程</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="section">
+      <h2>项目经历</h2>
+      <article class="entry">
+        <span class="entry-title">AI 求职助手 - 全栈开发</span>
+        <span class="entry-meta">2025.03 - 2025.06</span>
+        <ul class="bullet-list">
+          <li>使用 Python 与 FastAPI 开发规则分析服务，负责需求分析、接口设计与部署上线。</li>
+          <li>搭建检索增强问答流程，邀请 20 名同学试用并收集反馈。</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="section">
+      <h2>技能</h2>
+      <ul class="skills-list">
+        <li><strong>编程语言：</strong>Python、Java、SQL</li>
+        <li><strong>框架 / 工具：</strong>FastAPI、Vue、Git</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="/vendor/html-to-pdf.browser.js"></script>
+</body>
+</html>

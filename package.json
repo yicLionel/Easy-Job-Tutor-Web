@@ -1,0 +1,19 @@
+{
+  "name": "easy-job-tutor-web",
+  "private": true,
+  "description": "Browser build tooling for the resume PDF export bundle.",
+  "scripts": {
+    "build:pdf": "node build/bundle-pdf.mjs",
+    "build:fonts": ".venv312/bin/python build/subset-fonts.py",
+    "check": "node --check app.js && node --check build/bundle-pdf.mjs && node --check build/verify-pdf-export.mjs && node --check build/verify-app-export.mjs",
+    "verify:pdf": "node build/verify-pdf-export.mjs",
+    "verify:app": "node build/verify-app-export.mjs"
+  },
+  "dependencies": {
+    "@hmfw/html-to-pdf": "2.0.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright-core": "^1.61.1"
+  }
+}

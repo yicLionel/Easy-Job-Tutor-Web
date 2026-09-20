@@ -6,6 +6,7 @@
   <title>AI 简历优化 · 面试辅导 · 学习路线</title>
   <link rel="stylesheet" href="/styles.css" />
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <link rel="preconnect" href="/fonts/" />
 </head>
 <body>
   <div id="app" :class="['app-shell', appShellClass]">
@@ -122,6 +123,7 @@
       </nav>
 
       <main class="container">
+      <template v-if="!pdfOpen">
 
       <!-- ════════════ 步骤 1：上传 ════════════ -->
       <section v-if="step === 1" class="card">
@@ -533,6 +535,202 @@
           <button class="ghost" @click="step = 3">{{ t("learn_back") }}</button>
           <button class="primary" @click="downloadPlan">{{ t("learn_download") }}</button>
           <button class="ghost" @click="reset">{{ t("learn_restart") }}</button>
+        </div>
+      </section>
+      </template>
+
+      <!-- ════════════ 简历 PDF 导出 ════════════ -->
+      <section v-if="pdfOpen" class="card pdf-page">
+        <h2>{{ t("pdf_title") }}</h2>
+        <p class="hint">{{ t("pdf_hint") }}</p>
+
+        <div v-if="pdfError" class="error">{{ pdfError }}</div>
+        <div v-if="pdfNotice" class="notice">{{ pdfNotice }}</div>
+
+        <div class="pdf-layout">
+          <div class="pdf-form">
+            <div class="pdf-toolbar">
+              <label class="pdf-field">
+                <span>{{ t("pdf_style") }}</span>
+                <select v-model="resumeForm.style">
+                  <option v-for="s in RESUME_STYLES" :key="s.value" :value="s.value">{{ t(s.labelKey) }}</option>
+                </select>
+              </label>
+              <label class="pdf-field">
+                <span>{{ t("pdf_page_size") }}</span>
+                <select v-model="resumeForm.pageSize">
+                  <option value="A4">A4</option>
+                  <option value="Letter">Letter</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="pdf-field"><span>{{ t("pdf_candidate_level") }}</span>
+              <select v-model="resumeForm.candidateLevel">
+                <option value="student">{{ t("pdf_level_student") }}</option>
+                <option value="experienced">{{ t("pdf_level_experienced") }}</option>
+              </select>
+            </label>
+
+            <h3 class="block-title">{{ t("pdf_basic") }}</h3>
+            <div class="pdf-grid">
+              <label class="pdf-field"><span>{{ t("pdf_name") }}</span><input v-model="resumeForm.name" type="text" /></label>
+              <label class="pdf-field"><span>{{ t("pdf_target_role") }}</span><input v-model="resumeForm.targetRole" type="text" /></label>
+              <label class="pdf-field"><span>{{ t("pdf_target_industry") }}</span><input v-model="resumeForm.targetIndustry" type="text" /></label>
+              <label class="pdf-field"><span>{{ t("pdf_email") }}</span><input v-model="resumeForm.email" type="text" /></label>
+              <label class="pdf-field"><span>{{ t("pdf_phone") }}</span><input v-model="resumeForm.phone" type="text" /></label>
+              <label class="pdf-field"><span>{{ t("pdf_location") }}</span><input v-model="resumeForm.location" type="text" /></label>
+              <label class="pdf-field"><span>{{ t("pdf_linkedin") }}</span><input v-model="resumeForm.linkedin" type="text" /></label>
+              <label class="pdf-field"><span>{{ t("pdf_github") }}</span><input v-model="resumeForm.github" type="text" /></label>
+            </div>
+            <label class="pdf-field"><span>{{ t("pdf_summary") }}</span><textarea v-model="resumeForm.summary" rows="3"></textarea></label>
+
+            <h3 class="block-title">{{ t("pdf_education") }}<button class="ghost mini" @click="addResumeItem('education')">{{ t("pdf_add") }}</button></h3>
+            <div v-for="(item, i) in resumeSections.education" :key="'edu' + i" class="pdf-entry">
+              <button class="pdf-remove" @click="removeResumeItem('education', i)" :title="t('pdf_remove')">✕</button>
+              <div class="pdf-grid">
+                <label class="pdf-field"><span>{{ t("pdf_field_institution") }}</span><input v-model="item.institution" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_degree") }}</span><input v-model="item.degree" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_location") }}</span><input v-model="item.location" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_dates") }}</span><input v-model="item.dates" type="text" /></label>
+              </div>
+              <label class="pdf-field"><span>{{ t("pdf_field_details") }}</span><textarea v-model="item.details" rows="2"></textarea></label>
+            </div>
+
+            <h3 class="block-title">{{ t("pdf_experience") }}<button class="ghost mini" @click="addResumeItem('experience')">{{ t("pdf_add") }}</button></h3>
+            <div v-for="(item, i) in resumeSections.experience" :key="'exp' + i" class="pdf-entry">
+              <button class="pdf-remove" @click="removeResumeItem('experience', i)" :title="t('pdf_remove')">✕</button>
+              <div class="pdf-grid">
+                <label class="pdf-field"><span>{{ t("pdf_field_company") }}</span><input v-model="item.company" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_role") }}</span><input v-model="item.role" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_location") }}</span><input v-model="item.location" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_dates") }}</span><input v-model="item.dates" type="text" /></label>
+              </div>
+              <label class="pdf-field"><span>{{ t("pdf_field_bullets") }}</span><textarea v-model="item.bullets" rows="3"></textarea></label>
+            </div>
+
+            <h3 class="block-title">{{ t("pdf_projects") }}<button class="ghost mini" @click="addResumeItem('projects')">{{ t("pdf_add") }}</button></h3>
+            <div v-for="(item, i) in resumeSections.projects" :key="'prj' + i" class="pdf-entry">
+              <button class="pdf-remove" @click="removeResumeItem('projects', i)" :title="t('pdf_remove')">✕</button>
+              <div class="pdf-grid">
+                <label class="pdf-field"><span>{{ t("pdf_field_project_name") }}</span><input v-model="item.name" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_tech") }}</span><input v-model="item.techStack" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_context") }}</span><input v-model="item.context" type="text" /></label>
+              </div>
+              <label class="pdf-field"><span>{{ t("pdf_field_bullets") }}</span><textarea v-model="item.bullets" rows="3"></textarea></label>
+            </div>
+
+            <h3 class="block-title">{{ t("pdf_skills") }}<button class="ghost mini" @click="addResumeItem('skills')">{{ t("pdf_add") }}</button></h3>
+            <div v-for="(item, i) in resumeSections.skills" :key="'skl' + i" class="pdf-entry">
+              <button class="pdf-remove" @click="removeResumeItem('skills', i)" :title="t('pdf_remove')">✕</button>
+              <div class="pdf-grid">
+                <label class="pdf-field"><span>{{ t("pdf_field_category") }}</span><input v-model="item.category" type="text" /></label>
+                <label class="pdf-field wide"><span>{{ t("pdf_field_items") }}</span><input v-model="item.items" type="text" /></label>
+              </div>
+            </div>
+
+            <h3 class="block-title">{{ t("pdf_awards") }}<button class="ghost mini" @click="addResumeItem('awards')">{{ t("pdf_add") }}</button></h3>
+            <div v-for="(item, i) in resumeSections.awards" :key="'awd' + i" class="pdf-entry">
+              <button class="pdf-remove" @click="removeResumeItem('awards', i)" :title="t('pdf_remove')">✕</button>
+              <div class="pdf-grid">
+                <label class="pdf-field"><span>{{ t("pdf_field_award_name") }}</span><input v-model="item.name" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_issuer") }}</span><input v-model="item.issuer" type="text" /></label>
+                <label class="pdf-field"><span>{{ t("pdf_field_date") }}</span><input v-model="item.date" type="text" /></label>
+              </div>
+              <label class="pdf-field"><span>{{ t("pdf_field_details") }}</span><textarea v-model="item.details" rows="2"></textarea></label>
+            </div>
+
+            <div class="actions pdf-actions-bottom">
+              <button class="primary" :disabled="!canExportPdf" @click="exportResumePdf">
+                {{ pdfExporting ? t("pdf_exporting") : t("pdf_export") }}
+              </button>
+            </div>
+          </div>
+
+          <div class="pdf-preview-pane">
+            <div class="pdf-preview-title">{{ t("pdf_preview") }}</div>
+            <div class="pdf-preview-scroll">
+              <article
+                ref="resumePreview"
+                class="resume-sheet"
+                :class="'resume-style-' + resumeForm.style"
+              >
+                <header class="rs-header">
+                  <h1 class="rs-name">{{ resumeForm.name || t("pdf_placeholder_name") }}</h1>
+                  <p class="rs-target" v-if="resumeForm.targetRole || resumeForm.targetIndustry">
+                    {{ [resumeForm.targetRole, resumeForm.targetIndustry].filter(Boolean).join(" · ") }}
+                  </p>
+                  <p class="rs-contact" v-if="resumeChips.length">
+                    <span v-for="chip in resumeChips" :key="chip" class="rs-chip">{{ chip }}</span>
+                  </p>
+                </header>
+
+                <section class="rs-section" v-if="resumeForm.summary">
+                  <h2 class="rs-h2">{{ t("pdf_summary") }}</h2>
+                  <p class="rs-summary">{{ resumeForm.summary }}</p>
+                </section>
+
+                <section class="rs-section" v-if="filledEducation.length">
+                  <h2 class="rs-h2">{{ t("pdf_education") }}</h2>
+                  <article v-for="(item, i) in filledEducation" :key="'pedu' + i" class="rs-entry">
+                    <div class="rs-entry-head">
+                      <span class="rs-entry-title">{{ [item.institution, item.degree].filter(Boolean).join(" - ") }}</span>
+                      <span class="rs-entry-meta">{{ [item.location, item.dates].filter(Boolean).join(" | ") }}</span>
+                    </div>
+                    <ul class="rs-bullets" v-if="listLines(item.details).length">
+                      <li v-for="(line, j) in listLines(item.details)" :key="j">{{ line }}</li>
+                    </ul>
+                  </article>
+                </section>
+
+                <section class="rs-section" v-if="filledExperience.length">
+                  <h2 class="rs-h2">{{ t("pdf_experience") }}</h2>
+                  <article v-for="(item, i) in filledExperience" :key="'pexp' + i" class="rs-entry">
+                    <div class="rs-entry-head">
+                      <span class="rs-entry-title">{{ [item.company, item.role].filter(Boolean).join(" - ") }}</span>
+                      <span class="rs-entry-meta">{{ [item.location, item.dates].filter(Boolean).join(" | ") }}</span>
+                    </div>
+                    <ul class="rs-bullets" v-if="listLines(item.bullets).length">
+                      <li v-for="(line, j) in listLines(item.bullets)" :key="j">{{ line }}</li>
+                    </ul>
+                  </article>
+                </section>
+
+                <section class="rs-section" v-if="filledProjects.length">
+                  <h2 class="rs-h2">{{ t("pdf_projects") }}</h2>
+                  <article v-for="(item, i) in filledProjects" :key="'pprj' + i" class="rs-entry">
+                    <div class="rs-entry-head">
+                      <span class="rs-entry-title">{{ [item.name, item.techStack].filter(Boolean).join(" - ") }}</span>
+                      <span class="rs-entry-meta">{{ item.context }}</span>
+                    </div>
+                    <ul class="rs-bullets" v-if="listLines(item.bullets).length">
+                      <li v-for="(line, j) in listLines(item.bullets)" :key="j">{{ line }}</li>
+                    </ul>
+                  </article>
+                </section>
+
+                <section class="rs-section" v-if="filledSkills.length">
+                  <h2 class="rs-h2">{{ t("pdf_skills") }}</h2>
+                  <ul class="rs-skills">
+                    <li v-for="(item, i) in filledSkills" :key="'pskl' + i">
+                      <strong v-if="item.category">{{ item.category }}：</strong>{{ item.items }}
+                    </li>
+                  </ul>
+                </section>
+
+                <section class="rs-section" v-if="filledAwards.length">
+                  <h2 class="rs-h2">{{ t("pdf_awards") }}</h2>
+                  <article v-for="(item, i) in filledAwards" :key="'pawd' + i" class="rs-entry">
+                    <div class="rs-entry-head">
+                      <span class="rs-entry-title">{{ [item.name, item.issuer].filter(Boolean).join(" - ") }}</span>
+                      <span class="rs-entry-meta">{{ item.date }}</span>
+                    </div>
+                    <p class="rs-summary" v-if="item.details">{{ item.details }}</p>
+                  </article>
+                </section>
+              </article>
+            </div>
+          </div>
         </div>
       </section>
       </main>

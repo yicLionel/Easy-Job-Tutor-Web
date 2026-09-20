@@ -146,6 +146,60 @@ const LOCALES = {
     resume_opt_empty: "暂未识别到可直接改写的简历 bullet，请补充项目或经历描述。",
     resume_opt_export: "导出优化简历草稿",
     resume_opt_policy: "事实状态：草稿仅重排已有内容，不会自动补充数字、职责或成果。",
+    pdf_nav: "简历 PDF",
+    pdf_nav_desc: "填表并导出 A4 简历",
+    pdf_title: "导出简历 PDF",
+    pdf_hint: "填写真实信息，右侧实时预览。导出的是可选中文字的 ATS 友好 PDF，不会自动填入任何未确认内容。",
+    pdf_style: "风格",
+    pdf_style_modern: "现代简约",
+    pdf_style_classic: "经典专业",
+    pdf_style_creative: "清爽创意",
+    pdf_page_size: "纸张",
+    pdf_candidate_level: "候选人阶段",
+    pdf_level_student: "学生 / 应届",
+    pdf_level_experienced: "有工作经验",
+    pdf_basic: "基本信息",
+    pdf_name: "姓名",
+    pdf_target_role: "目标岗位",
+    pdf_target_industry: "目标行业",
+    pdf_email: "邮箱",
+    pdf_phone: "电话",
+    pdf_location: "城市",
+    pdf_linkedin: "LinkedIn",
+    pdf_github: "GitHub / 作品集",
+    pdf_summary: "个人简介",
+    pdf_education: "教育背景",
+    pdf_experience: "工作 / 实习经历",
+    pdf_projects: "项目经历",
+    pdf_skills: "技能",
+    pdf_awards: "证书 / 荣誉",
+    pdf_add: "+ 添加",
+    pdf_remove: "删除这一项",
+    pdf_field_institution: "学校",
+    pdf_field_degree: "学位 / 专业",
+    pdf_field_location: "地点",
+    pdf_field_dates: "时间",
+    pdf_field_details: "补充说明（每行一条）",
+    pdf_field_company: "公司 / 组织",
+    pdf_field_role: "职位",
+    pdf_field_bullets: "要点（每行一条）",
+    pdf_field_project_name: "项目名称",
+    pdf_field_tech: "技术栈",
+    pdf_field_context: "项目背景",
+    pdf_field_category: "分类",
+    pdf_field_items: "技能（用顿号或逗号分隔）",
+    pdf_field_award_name: "名称",
+    pdf_field_issuer: "颁发方",
+    pdf_field_date: "日期",
+    pdf_export: "一键下载 PDF",
+    pdf_exporting: "生成中…",
+    pdf_export_ok: "PDF 已生成并开始下载。",
+    pdf_export_error: "PDF 生成失败，请重试。",
+    pdf_preview: "预览（A4）",
+    pdf_placeholder_name: "你的姓名",
+    pdf_prefill_role: "实习 / 项目经历",
+    pdf_skills_default: "相关技能",
+    pdf_need_name: "请先填写姓名。",
     gap_deduction: (s) => `扣分：${s}`,
     match_reupload: "重新上传",
     match_view_gaps: (n) => `查看差距（${n} 项）`,
@@ -311,6 +365,60 @@ const LOCALES = {
     resume_opt_empty: "No directly rewritable resume bullets were identified. Add more project or experience detail.",
     resume_opt_export: "Export Resume Draft",
     resume_opt_policy: "Fact status: drafts only reorder existing content and never invent numbers, responsibilities, or outcomes.",
+    pdf_nav: "Resume PDF",
+    pdf_nav_desc: "Fill the form and export an A4 resume",
+    pdf_title: "Export Resume PDF",
+    pdf_hint: "Enter real information and watch the live preview. The export is an ATS-friendly PDF with selectable text and never adds unconfirmed content.",
+    pdf_style: "Style",
+    pdf_style_modern: "Modern Minimal",
+    pdf_style_classic: "Classic Professional",
+    pdf_style_creative: "Creative Clean",
+    pdf_page_size: "Page size",
+    pdf_candidate_level: "Candidate level",
+    pdf_level_student: "Student / new graduate",
+    pdf_level_experienced: "Experienced",
+    pdf_basic: "Basics",
+    pdf_name: "Full name",
+    pdf_target_role: "Target role",
+    pdf_target_industry: "Target industry",
+    pdf_email: "Email",
+    pdf_phone: "Phone",
+    pdf_location: "Location",
+    pdf_linkedin: "LinkedIn",
+    pdf_github: "GitHub / Portfolio",
+    pdf_summary: "Professional Summary",
+    pdf_education: "Education",
+    pdf_experience: "Experience",
+    pdf_projects: "Projects",
+    pdf_skills: "Skills",
+    pdf_awards: "Certifications / Awards",
+    pdf_add: "+ Add",
+    pdf_remove: "Remove this item",
+    pdf_field_institution: "Institution",
+    pdf_field_degree: "Degree / Major",
+    pdf_field_location: "Location",
+    pdf_field_dates: "Dates",
+    pdf_field_details: "Details (one per line)",
+    pdf_field_company: "Company / Organization",
+    pdf_field_role: "Role",
+    pdf_field_bullets: "Bullets (one per line)",
+    pdf_field_project_name: "Project name",
+    pdf_field_tech: "Tech stack",
+    pdf_field_context: "Context",
+    pdf_field_category: "Category",
+    pdf_field_items: "Skills (comma separated)",
+    pdf_field_award_name: "Name",
+    pdf_field_issuer: "Issuer",
+    pdf_field_date: "Date",
+    pdf_export: "Download PDF",
+    pdf_exporting: "Generating…",
+    pdf_export_ok: "PDF generated and download started.",
+    pdf_export_error: "PDF generation failed. Please retry.",
+    pdf_preview: "Preview (A4)",
+    pdf_placeholder_name: "Your Name",
+    pdf_prefill_role: "Internship / Project Experience",
+    pdf_skills_default: "Relevant Skills",
+    pdf_need_name: "Please enter your name first.",
     gap_deduction: (s) => `Deduction: ${s}`,
     match_reupload: "Re-upload",
     match_view_gaps: (n) => `View Gaps (${n})`,
@@ -457,9 +565,189 @@ createApp({
       closeSidebar();
     };
 
+    // ── 简历 PDF（前端矢量导出） ──────────────────────────────
+    const RESUME_STYLES = [
+      { value: "modern-minimal", labelKey: "pdf_style_modern" },
+      { value: "classic-professional", labelKey: "pdf_style_classic" },
+      { value: "creative-clean", labelKey: "pdf_style_creative" },
+    ];
+
+    const pdfOpen = ref(false);
+    const resumePreview = ref(null);
+    const pdfExporting = ref(false);
+    const pdfError = ref("");
+    const pdfNotice = ref("");
+    let resumeFontsLoaded = false;
+    let pdfLibPromise = null;
+
+    const resumeForm = reactive({
+      style: "modern-minimal",
+      pageSize: "A4",
+      candidateLevel: "student",
+      name: "",
+      targetRole: "",
+      targetIndustry: "",
+      email: "",
+      phone: "",
+      location: "",
+      linkedin: "",
+      github: "",
+      summary: "",
+    });
+
+    const resumeSections = reactive({
+      education: [],
+      experience: [],
+      projects: [],
+      skills: [],
+      awards: [],
+    });
+
+    const emptyResumeEntry = (kind) => {
+      switch (kind) {
+        case "education":
+          return { institution: "", degree: "", location: "", dates: "", details: "" };
+        case "experience":
+          return { company: "", role: "", location: "", dates: "", bullets: "" };
+        case "projects":
+          return { name: "", techStack: "", context: "", bullets: "" };
+        case "skills":
+          return { category: "", items: "" };
+        case "awards":
+          return { name: "", issuer: "", date: "", details: "" };
+        default:
+          return {};
+      }
+    };
+
+    const addResumeItem = (kind) => { resumeSections[kind].push(emptyResumeEntry(kind)); };
+    const removeResumeItem = (kind, index) => { resumeSections[kind].splice(index, 1); };
+
+    const listLines = (text) =>
+      (text || "").split("\n").map((line) => line.trim()).filter(Boolean);
+
+    const entryHasText = (entry) =>
+      Object.values(entry).some((value) => String(value || "").trim().length > 0);
+    const filledList = (kind) => resumeSections[kind].filter(entryHasText);
+    const filledEducation = computed(() => filledList("education"));
+    const filledExperience = computed(() => filledList("experience"));
+    const filledProjects = computed(() => filledList("projects"));
+    const filledSkills = computed(() => filledList("skills"));
+    const filledAwards = computed(() => filledList("awards"));
+
+    const resumeChips = computed(() => [
+      resumeForm.email,
+      resumeForm.phone,
+      resumeForm.location,
+      resumeForm.linkedin,
+      resumeForm.github,
+    ].map((value) => (value || "").trim()).filter(Boolean));
+
+    const canExportPdf = computed(() => resumeForm.name.trim().length > 0 && !pdfExporting.value);
+
+    const ensureResumeFonts = () => {
+      if (resumeFontsLoaded) return;
+      resumeFontsLoaded = true;
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "/fonts/resume-fonts.css";
+      document.head.appendChild(link);
+    };
+
+    // The PDF engine is ~4.7 MB; load it only when the user opens the PDF page.
+    const ensurePdfLib = () => {
+      if (window.HtmlToPdfLib) return Promise.resolve(window.HtmlToPdfLib);
+      if (pdfLibPromise) return pdfLibPromise;
+      pdfLibPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "/vendor/html-to-pdf.browser.js";
+        script.onload = () => resolve(window.HtmlToPdfLib);
+        script.onerror = () => reject(new Error("pdf bundle failed to load"));
+        document.head.appendChild(script);
+      });
+      return pdfLibPromise;
+    };
+
+    const resetResumeSections = () => {
+      ["education", "experience", "projects", "skills", "awards"].forEach((kind) => {
+        resumeSections[kind].splice(0, resumeSections[kind].length);
+      });
+    };
+
+    const prefillResume = () => {
+      resumeForm.targetRole = resumeForm.targetRole || result.role_label || "";
+      const opt = result.resume_optimization || {};
+      // Only unconfirmed source lines are used, never a suggested rewrite.
+      const sources = (opt.bullet_rewrites || []).map((item) => item.source).filter(Boolean);
+      if (sources.length) {
+        resumeSections.experience.push({
+          company: "",
+          role: t("pdf_prefill_role"),
+          location: "",
+          dates: "",
+          bullets: sources.join("\n"),
+        });
+      }
+      const skills = (result.matched_skills || []).slice(0, 12);
+      if (skills.length) {
+        resumeSections.skills.push({ category: t("pdf_skills_default"), items: skills.join("、") });
+      }
+      resumeSections.education.push(emptyResumeEntry("education"));
+      resumeSections.projects.push(emptyResumeEntry("projects"));
+    };
+
+    const openResumePdf = () => {
+      if (!result.mode) return;
+      ensureResumeFonts();
+      ensurePdfLib().catch(() => {});
+      if (!resumeSections.experience.length && !resumeSections.education.length) prefillResume();
+      pdfOpen.value = true;
+      pdfError.value = "";
+      pdfNotice.value = "";
+      closeSidebar();
+    };
+
+    const resumeFilename = () => {
+      const base = (resumeForm.name || "").trim() || "resume";
+      return `${base}_简历`.replace(/[\\/:*?"<>|]/g, "_");
+    };
+
+    const exportResumePdf = async () => {
+      pdfError.value = "";
+      pdfNotice.value = "";
+      if (!canExportPdf.value) {
+        pdfError.value = t("pdf_need_name");
+        return;
+      }
+      const lib = await ensurePdfLib().catch(() => null);
+      if (!lib || typeof lib.htmlToPdf !== "function") {
+        pdfError.value = t("pdf_export_error");
+        return;
+      }
+      pdfExporting.value = true;
+      try {
+        const output = await lib.htmlToPdf(resumePreview.value, {
+          filename: resumeFilename(),
+          pageSize: resumeForm.pageSize,
+          fontPaths: {
+            regular: "/fonts/Source_Han_Sans_SC_Regular.woff",
+            bold: "/fonts/Source_Han_Sans_SC_Bold.woff",
+          },
+        });
+        if (!output || !output.success) {
+          throw new Error((output && output.error) || "export failed");
+        }
+        pdfNotice.value = t("pdf_export_ok");
+      } catch (err) {
+        pdfError.value = t("pdf_export_error");
+      } finally {
+        pdfExporting.value = false;
+      }
+    };
+
     // ── 页面导航 ──────────────────────────────────────────────
     // 图标映射：用 emoji 做轻量图标，不额外引入图标库
-    const PAGE_ICONS = { home: "🏠", analysis: "📊", gaps: "🔍", learning: "📚", interview: "🎤" };
+    const PAGE_ICONS = { home: "🏠", analysis: "📊", gaps: "🔍", learning: "📚", interview: "🎤", pdf: "📄" };
 
     const navItems = computed(() => [
       { id: "home", label: t("nav_home"), desc: t("nav_home_desc"), icon: PAGE_ICONS.home, step: 1 },
@@ -467,9 +755,11 @@ createApp({
       { id: "gaps", label: t("nav_gaps"), desc: t("nav_gaps_desc"), icon: PAGE_ICONS.gaps, step: 3 },
       { id: "learning", label: t("nav_learning"), desc: t("nav_learning_desc"), icon: PAGE_ICONS.learning, step: 4 },
       { id: "interview", label: t("nav_interview"), desc: t("nav_interview_desc"), icon: PAGE_ICONS.interview, step: 4 },
+      { id: "pdf", label: t("pdf_nav"), desc: t("pdf_nav_desc"), icon: PAGE_ICONS.pdf, step: null },
     ]);
 
     const currentPage = computed(() => {
+      if (pdfOpen.value) return "pdf";
       const pageMap = { 1: "home", 2: "analysis", 3: "gaps", 4: "learning" };
       return pageMap[step.value] || "home";
     });
@@ -477,8 +767,8 @@ createApp({
     const isNavEnabled = (id) => {
       // 首页永远可用
       if (id === "home") return true;
-      // 分析页：必须有分析结果
-      if (id === "analysis") return !!result.mode;
+      // 分析页与简历 PDF：必须有分析结果
+      if (id === "analysis" || id === "pdf") return !!result.mode;
       // 查漏补缺、学习路线、模拟面试：仅 complete 模式且结果存在
       if (["gaps", "learning", "interview"].includes(id)) {
         return result.mode === "complete";
@@ -488,8 +778,10 @@ createApp({
 
     const navigateTo = (id) => {
       if (!isNavEnabled(id)) return;
+      if (id === "pdf") { openResumePdf(); return; }
       const item = navItems.value.find((n) => n.id === id);
       if (!item) return;
+      pdfOpen.value = false;
       // 学习路线和模拟面试都跳 step 4，分别关注不同区域
       if (id === "interview" && item.step === 4) {
         step.value = 4;
@@ -533,6 +825,8 @@ createApp({
       jdTexts.value = ["", ""];
       error.value = "";
       step.value = 1;
+      pdfOpen.value = false;
+      resetResumeSections();
     });
 
     const closeSidebar = () => { if (isMobile.value) sidebarOpen.value = false; };
@@ -543,6 +837,7 @@ createApp({
 
     const jumpToStep = (targetStep) => {
       if (targetStep < 1 || targetStep > 4) return;
+      pdfOpen.value = false;
       if (result.mode === "complete") { if (targetStep <= 4) step.value = targetStep; }
       else if (targetStep === 1 || targetStep === 2) { step.value = targetStep; }
       closeSidebar();
@@ -585,6 +880,8 @@ createApp({
         if (!data.ok) { error.value = data.error || t("error_fail"); return; }
         Object.assign(result, data);
         step.value = 2;
+        pdfOpen.value = false;
+        resetResumeSections();
       } catch (e) { error.value = t("error_network"); }
       finally { loading.value = false; }
     };
@@ -623,10 +920,14 @@ createApp({
     // ── 重置 ──────────────────────────────────────────────────
     const reset = () => {
       step.value = 1;
+      pdfOpen.value = false;
       form.jd = ""; form.file = null; form.fileName = ""; form.role = "auto";
       jdTexts.value = ["", ""];
       error.value = "";
       Object.keys(result).forEach((k) => delete result[k]);
+      resetResumeSections();
+      pdfError.value = "";
+      pdfNotice.value = "";
       closeSidebar();
     };
 
@@ -738,6 +1039,11 @@ createApp({
       statusLabel,
       // 动作
       reset, downloadPlan, downloadOptimizedResume, toggleSidebar, closeSidebar, jumpToStep,
+      // 简历 PDF
+      RESUME_STYLES, pdfOpen, resumeForm, resumeSections, resumePreview,
+      pdfExporting, pdfError, pdfNotice, canExportPdf, resumeChips, listLines,
+      filledEducation, filledExperience, filledProjects, filledSkills, filledAwards,
+      addResumeItem, removeResumeItem, exportResumePdf,
       // 页面导航
       navItems, currentPage, isNavEnabled, navigateTo,
       // 模式切换
